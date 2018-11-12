@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.004 2018/11/12 10:45:41 kyau Exp $
+# $Arch: autoarch,v 1.019 2018/11/12 15:46:10 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -30,6 +30,14 @@ function validate() {
 }
 # }}}
 # Variables: Load {{{
+if [ ! -f moduli ]; then
+	printf "\\x1b[38;5;124m‼ Missing non elliptic-curve primes (moduli)\\n"
+	printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m ssh-keygen -G moduli.all -b 2048\\n"
+	printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m ssh-keygen -T moduli -f moduli.all\\n"
+	printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m rm moduli.all\\n\\n"
+	exit 1
+fi
+
 if [ -f *.aa ]; then
 	source *.aa
 fi
@@ -121,9 +129,363 @@ printf " \\x1b[38;5;235m└─────────────────�
 # }}}
 # Prerequisites {{{
 echo -e
-desc "${AA_DISK}: Erase"
-#/usr/bin/dd if=/dev/zero of=${AA_DISK} bs=1k count=2048
+desc "Internet Status"
+/usr/bin/wget -q --tries=10 --timeout=20 --spider http://www.archlinux.org >/dev/null 2>&1
 validate "$?"
+# }}}
+# Prerequisites: Disk {{{
+desc "${AA_DISK}: Erase (block-level wipe)"
+/usr/bin/dd if=/dev/zero of=${AA_DISK} bs=1k count=2048 >/dev/null 2>&1
+validate "$?"
+
+desc "${AA_DISK}: Erase (filesystem signature)"
+/usr/bin/wipefs -af "${AA_DISK}" >/dev/null 2>&1
+validate "$?"
+
+desc "${AA_DISK}: Erase (MBR/GPT data structs)"
+/usr/sbin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
+validate "$?"
+
+desc "${AA_DISK}: Partition"
+/usr/sbin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8300 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
+validate "$?"
+
+desc "${AA_DISK}: Labels"
+/usr/sbin/sgdisk -c 1:"LVM2" -c 2:"UEFI" ${AA_DISK} >/dev/null 2>&1
+validate "$?"
+# }}}
+# Prerequisites: LVM {{{
+desc "LVM: Initialize Physical Volume"
+/usr/sbin/pvcreate --yes ${AA_DISK}1 >/dev/null 2>&1
+validate "$?"
+
+desc "LVM: Create Volume Group"
+/usr/sbin/vgcreate --yes ${AA_HOST} ${AA_DISK}1 >/dev/null 2>&1
+validate "$?"
+
+desc "LVM: Create Logical Volume (${AA_HOST}-swap)"
+/usr/sbin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
+validate "$?"
+
+desc "LVM: Create Logical Volume (${AA_HOST}-root)"
+/usr/sbin/lvcreate  --yes -l +100%FREE ${AA_HOST} --name root >/dev/null 2>&1
+validate "$?"
+# }}}
+# Prerequisites: Filesystems {{{
+desc "Format: Ext4 (${AA_HOST}-root)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-root >/dev/null 2>&1
+validate "$?"
+
+desc "Format: FAT32 (${AA_DISK}2)"
+/usr/bin/mkfs.fat -F32 ${AA_DISK}2 >/dev/null 2>&1
+validate "$?"
+
+desc "Swap: Create"
+/usr/sbin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+validate "$?"
+
+desc "Swap: Enable"
+/usr/sbin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+validate "$?"
+
+desc "Mount: $(echo ${AA_HOST} | awk '{print toupper($0)}') => /mnt"
+/usr/bin/mount /dev/mapper/${AA_HOST}-root /mnt >/dev/null 2>&1
+validate "$?"
+
+desc "Create: /boot"
+/usr/sbin/mkdir /mnt/boot >/dev/null 2>&1
+validate "$?"
+
+desc "Mount: UEFI => /mnt/boot"
+/usr/bin/mount ${AA_DISK}2 /mnt/boot >/dev/null 2>&1
+validate "$?"
+# }}}
+# Install: Pacstrap {{{
+desc "Install: Packages"
+/usr/bin/pacstrap /mnt base base-devel efibootmgr gdisk git intel-ucode lvm2 nftables openssh pacman-contrib pyalpm refind-efi reflector sudo vim >/dev/null 2>&1
+validate "$?"
+
+desc "Generate: /etc/fstab"
+/usr/bin/genfstab -pU /mnt >> /mnt/etc/fstab
+validate "$?"
+
+desc "Modify: /etc/fstab"
+/usr/bin/sed -i 's/rw,relatime\t/rw,relatime,journal_checksum\t/' /mnt/etc/fstab >/dev/null 2>&1
+validate "$?"
+# }}}
+# Install: Configuration {{{
+desc "Modify: Superuser Password"
+/usr/bin/arch-chroot /mnt chpasswd <<< "root:${AA_PASSWD}" >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /etc/mkinitcpio.conf"
+/usr/bin/sed -i -e 's/^MODULES=()/MODULES=(acpi_ipmi crc32_generic crc32c-intel fuse lz4 lz4_compress)/' -e 's/udev autodetect modconf block filesystems keyboard/systemd keyboard autodetect block sd-lvm2 filesystems/' /mnt/etc/mkinitcpio.conf >/dev/null 2>&1
+validate "$?"
+
+desc "Config: Initial Ramdisk Environment"
+/usr/bin/arch-chroot /mnt mkinitcpio -p linux >/dev/null 2>&1
+validate "$?"
+
+desc "Create: User Account"
+/usr/bin/arch-chroot /mnt useradd -m -G wheel,systemd-journal -s /bin/bash ${AA_USERNAME}
+validate "$?"
+
+desc "Modify: User Password"
+/usr/bin/arch-chroot /mnt chpasswd <<< "${AA_USERNAME}:${AA_PASSWD}" >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: Root \$EDITOR"
+/usr/sbin/echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc >/dev/null 2>&1
+validate "$?"
+
+desc "Permissions: /bin/su"
+/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su-l >/dev/null 2>&1
+validate "$?"
+
+desc "Permissions: /boot, /root, /home/${AA_USERNAME}"
+/usr/bin/arch-chroot /mnt chmod -R go-rwx /root /home/kyau /boot
+validate "$?"
+
+desc "Install: Refind"
+/usr/bin/arch-chroot /mnt refind-install --usedefault ${AA_DISK}2 --alldrivers >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /boot/EFI/BOOT/refind.conf"
+UUID=$(blkid -s PARTUUID -o value ${A_INSTALL}2)
+/usr/bin/cat > /mnt/boot/EFI/BOOT/refind.conf <<EOF
+timeout 10
+scan_driver_dirs EFI/BOOT/drivers_x64,EFI/BOOT/drivers
+dont_scan_dirs EFI/Dell
+scan_all_linux_kernels false
+menuentry "Arch Linux" {
+    icon /EFI/BOOT/icons/os_arch.png
+    volume ${UUID}
+    loader /vmlinuz-linux
+    initrd /initramfs-linux.img
+    options "root=/dev/mapper/${AA_HOST}-root rw add_efi_memmap nomodeset zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold initrd=\intel-ucode.img"
+    submenuentry "Boot using fallback initramfs" {
+        initrd /initramfs-linux-fallback.img
+    }
+}
+EOF
+validate "$?"
+
+desc "Permissions: /tmp"
+/usr/sbin/echo -e "tmpfs\t/tmp\ttmpfs\trw,nosuid,nodev,noatime,mode=1777\t0\t0" >> /mnt/etc/fstab 
+validate "$?"
+
+desc "Permissions: /proc"
+/usr/sbin/echo -e "proc\t/proc\tproc\tnosuid,nodev,noexec,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Security: Kernel Runtime Parameters"
+/usr/bin/cat > /mnt/etc/sysctl.d/50-security.conf << EOF
+net.ipv4.conf.all.secure_redirects=0
+net.ipv4.conf.default.secure_redirects=0
+net.ipv4.conf.default.send_redirects=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.tcp_syncookies=1
+net.ipv4.tcp_rfc1337=1
+kernel.dmesg_restrict=1
+kernel.kptr_restrict=1
+EOF
+validate "$?"
+
+desc "Modify: Oldschool NIC Names"
+/usr/bin/ln -sf /dev/null /mnt/etc/udev/rules.d/80-net-setup-link.rules
+validate "$?"
+
+desc "Config: eth0"
+/usr/sbin/echo -e "[Match]\nName=eth0\n\n[Network]\nAddress=${A_IPADDR}/24\nGateway=${A_GATEWAY}" > /mnt/etc/systemd/network/eth0.network
+validate "$?"
+
+desc "Enable Service: systemd-networkd"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd >/dev/null 2>&1
+validate "$?"
+
+desc "Enable Service: sshd"
+/usr/bin/arch-chroot /mnt systemctl enable sshd >/dev/null 2>&1
+validate "$?"
+
+desc "Enable Service: ntpd"
+/usr/bin/arch-chroot /mnt timedatectl set-ntp true
+validate "$?"
+
+desc "Modify: /etc/pacman.conf"
+/usr/bin/sed -i 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /etc/hostname"
+/usr/bin/echo -e "${AA_HOSTNAME}" > /mnt/etc/hostname
+validate "$?"
+
+desc "Modify: /etc/hosts"
+/usr/bin/echo -e "127.0.0.1\t${AA_HOST}.localdomain\t${AA_HOST}" >> /mnt/etc/hosts
+validate "$?"
+
+desc "Modify: /etc/resolv.conf"
+/usr/bin/echo -e "${AA_DNS}" >> /mnt/etc/resolv.conf
+validate "$?"
+
+desc "Symlink: /etc/localtime"
+/usr/bin/arch-chroot /mnt ln -sf /usr/share/zoneinfo/${AA_TIMEZONE} /etc/localtime
+validate "$?"
+
+desc "Sync: Clock"
+/usr/bin/arch-chroot /mnt hwclock --systohc
+validate "$?"
+
+desc "Modify: /etc/locale.gen"
+/usr/bin/sed -i 's/^#en_US\.UTF/en_US\.UTF/' /mnt/etc/locale.gen >/dev/null 2>&1
+validate "$?"
+
+desc "Generate: Locale"
+/usr/bin/arch-chroot /mnt locale-gen >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /etc/locale.conf"
+/usr/bin/arch-chroot /mnt localectl set-locale LANG=en_US.UTF-8
+validate "$?"
+
+desc "Modify: /etc/pacman.d/mirrorlist"
+/usr/bin/arch-chroot /mnt reflector --latest 100 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+validate "$?"
+
+desc "Download: AUR Helper (pikaur)"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'git clone https://aur.archlinux.org/pikaur.git' >/dev/null 2>&1
+validate "$?"
+
+desc "Compile: AUR Helper (pikaur)"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'cd pikaur && makepkg -fsr --noconfirm' >/dev/null 2>&1
+validate "$?"
+
+desc "Install: AUR Helper (pikaur)"
+T_PIKAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/pikaur/ | /usr/sbin/grep .tar.xz)
+/usr/bin/arch-chroot /mnt pacman -U /home/${AA_USERNAME}/pikaur/${T_PIKAUR} --noconfirm >/dev/null 2>&1
+validate "$?"
+
+desc "Remove: AUR Helper Source"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'rm -rf pikaur'
+validate "$?"
+
+desc "Modify: /etc/makepkg.conf"
+/usr/bin/sed -i 's/^#BUILDDIR/BUILDDIR/' /mnt/etc/makepkg.conf
+validate "$?"
+
+desc "Systemd: TTYVTDisallocate"
+/usr/sbin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d
+/usr/sbin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
+[Service]
+TTYVTDisallocate=no
+EOF
+validate "$?"
+# }}}
+# Install: Security {{{
+desc "Download: /etc/ssh/sshd_config"
+/usr/bin/wget ${AA_SSHD_CONFIG} -O /mnt/etc/ssh/sshd_config >/dev/null 2>&1
+validate "$?"
+
+desc "Create: ~/.ssh/"
+/usr/sbin/mkdir -p /mnt/home/${AA_USERNAME}/.ssh/
+validate "$?"
+
+desc "Download: ~/.ssh/authorized_keys"
+/usr/bin/wget ${AA_SSH_KEY} -O /mnt/home/${AA_USERNAME}/.ssh/authorized_keys >/dev/null 2>&1
+validate "$?"
+
+desc "Download: ~/.ssh/config"
+/usr/bin/wget ${AA_SSH_CONFIG} -O /mnt/home/${AA_USERNAME}/.ssh/config >/dev/null 2>&1
+validate "$?"
+
+desc "Permissions: ~/.ssh/"
+/usr/bin/arch-chroot /mnt chown -R ${AA_USERNAME}:${AA_USERNAME} /mnt/${AA_USERNAME}/.ssh/
+/usr/bin/arch-chroot /mnt chmod -R go-rwx /home/${AA_USERNAME}/.ssh/
+validate "$?"
+
+desc "Create: /etc/ssh/moduli"
+/usr/sbin/cp -f moduli /mnt/etc/ssh/moduli >/dev/null 2>&1
+validate "$?"
+
+desc "SSH: Host Key (Ed25519)"
+/usr/sbin/ssh-keygen -t ed25519 -f /mnt/etc/ssh/ssh_host_ed25519_key -N "" < /dev/null >/dev/null 2>&1
+validate "$?"
+
+desc "SSH: Host Key (RSA 4096)"
+/usr/sbin/ssh-keygen -t rsa -b 4096 -f /mnt/etc/ssh/ssh_host_rsa_key -N "" < /dev/null >/dev/null 2>&1
+validate "$?"
+
+desc "Groupadd: ssh"
+/usr/bin/arch-chroot /mnt groupadd ssh
+/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} ssh
+validate "$?"
+
+desc "Modify: /etc/nftables.conf"
+cat > /mnt/etc/nftables.conf << EOF
+#!/usr/bin/nft -f
+# $Arch: nftables.conf,v 1.003 2018/11/12 15:41:23 kyau Exp $
+#
+# KYAU Labs - IPv4/IPv6 Firewall
+
+table inet filter {
+
+  chain input {
+    type filter hook input priority 0;
+
+    # allow established/related connections
+    ct state {established, related} accept
+
+    # early drop of invalid connections
+    ct state invalid drop
+
+    # allow from loopback
+    iifname lo accept
+
+    # no ping floods
+    ip6 nexthdr icmpv6 icmpv6 type echo-request limit rate 10/second accept
+    ip protocol icmp icmp type echo-request limit rate 10/second accept
+
+    # allow ssh, but with brute force protection
+    tcp dport ssh limit rate 15/minute accept
+
+    # allow http and https traffic
+    #tcp dport {http,https} accept
+
+    # everything else (blackhole)
+    reject with icmp type port-unreachable
+  }
+
+  # all forwarding traffic gets dropped (we are not a router)
+  chain forward {
+    type filter hook forward priority 0;
+    drop
+  }
+
+  # let all traffic outbound through the firewall
+  chain output {
+    type filter hook output priority 0;
+    accept
+  }
+
+}
+EOF
+validate "$?"
+
+desc "Systemd: Enable (nftables)"
+/usr/bin/arch-chroot /mnt systemctl enable nftables >/dev/null 2>&1
+validate "$?"
+
+desc "Create: /etc/sudoers.d/kyaulabs"
+cat > /mnt/etc/sudoers.d/kyaulabs << EOF
+Defaults editor=/usr/bin/rvim
+Defaults env_keep += "SSH_AUTH_SOCK"
+%wheel ALL=(ALL) ALL
+ALL ALL=(ALL) /usr/sbin/checkupdates
+EOF
+validate "$?"
+# }}}
+# Post-Install {{{
+printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m umount -R /mnt\\n"
+printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m systemctl reboot\\n\\n"
 # }}}
 
 # vim: ft=sh ts=4 sw=4 noet:
