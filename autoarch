@@ -1,7 +1,129 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.001 2018/11/12 01:19:25 kyau Exp $
+# $Arch: autoarch,v 1.004 2018/11/12 10:45:41 kyau Exp $
 
+set -eu
+IFS=$'\n\t'
 
+# ANSI Output {{{
+function print_logo() {
+	printf "             \e[0;36m.\\n"
+	printf "            \e[0;36m/ \ \\n"
+	printf "           \e[0;36m/   \ \\n"
+	printf "          \e[0;36m/^.   \      \\x1b[38;5;252mAutomated Arch\\x1b[38;5;32mLinux\\n"
+	printf "         \e[0;36m/  .-.  \     \\x1b[38;5;8mKYAU Labs Edition\\n"
+	printf "        \e[0;36m/  (   ) _\ \\n"
+	printf "       \e[1;36m/ _.~   ~._^\ \\n"
+	printf "      \e[1;36m/.^         ^.\ \\n"
+}
+function desc() {
+	>&2 printf "\\x1b[38;5;32m\\u25ab\\u25aa \\x1b[38;5;252m%s\\x1b[0m " "${1}"
+}
+function validate() {
+	# if failure else success
+	if [[ "$1" -ne 0 ]]; then
+		>&2 printf "\\x1b[31m \\u203c \\x1b[0m\\n"
+		exit 1
+	else
+		>&2 printf "\\x1b[1;32m \\u2713 \\x1b[0m\\n"
+	fi
+}
+# }}}
+# Variables: Load {{{
+if [ -f *.aa ]; then
+	source *.aa
+fi
+# Installation Disk
+if [ -z ${AA_DISK+x} ]; then
+	printf "Disk to use for install [/dev/sda]: "
+	read AA_DISK
+	if [ -z "$AA_DISK" ]; then
+		AA_DISK="/dev/sda"
+	fi
+fi
+# Hostname
+if [ -z ${AA_HOSTNAME+x} ]; then
+	printf "Hostname [arch.local]: "
+	read AA_HOSTNAME
+	if [ -z "$AA_HOSTNAME" ]; then
+		AA_HOSTNAME="arch.local"
+	fi
+	AA_HOST=${AA_HOSTNAME%%.*}
+else
+	AA_HOST=${AA_HOSTNAME%%.*}
+fi
+# Swap
+if [ -z ${AA_SWAP+x} ]; then
+	printf "Swap Size (in GB) [4]: "
+	read AA_SWAP
+	if [ -z "$AA_SWAP" ]; then
+		AA_SWAP="4"
+	fi
+fi
+# Root Password
+if [ -z ${AA_PASSWD+x} ]; then
+	printf "Root/User password [moo]: "
+	read AA_PASSWD
+	if [ -z "$AA_PASSWD" ]; then
+		AA_PASSWD="moo"
+	fi
+fi
+# Username
+if [ -z ${AA_USERNAME+x} ]; then
+	printf "Username (kyau): "
+	read AA_USERNAME
+	if [ -z "$AA_USERNAME" ]; then
+		AA_USERNAME="kyau"
+	fi
+fi
+# IP Address
+if [ -z ${AA_IPADDR+x} ]; then
+	printf "IP Address [10.0.42.40]: "
+	read AA_IPADDR
+	if [ -z "$AA_IPADDR" ]; then
+		AA_IPADDR="10.0.42.40"
+	fi
+fi
+# Gateway
+if [ -z ${AA_GATEWAY+x} ]; then
+	printf "Gateway [10.0.42.1]: "
+	read AA_GATEWAY
+	if [ -z "$AA_GATEWAY" ]; then
+		AA_GATEWAY="10.0.42.1"
+	fi
+fi
+# DNS
+if [ -z ${AA_DNS+x} ]; then
+	printf "DNS [1.1.1.1]: "
+	read AA_DNS
+	if [ -z "$AA_DNS" ]; then
+		AA_DNS="1.1.1.1"
+	fi
+fi
+# }}}
+# Variables: Summary {{{
+print_logo
+p_sshd=${AA_SSHD_CONFIG##*/}
+p_ssh=${AA_SSH_CONFIG##*/}
+p_sshkey=${AA_SSH_KEY##*/}
+printf " \\x1b[38;5;255m┌\\x1b[38;5;242m────\\x1b[38;5;235m─·\\x1b[38;5;242m─\x1b[38;5;235m─·─────────────────────────────────────────────────┐\\n"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDisk: \\x1b[38;5;240m%-10s  \\x1b[38;5;244mSwap: \\x1b[38;5;240m%-2sGB %-21s \\x1b[38;5;237m░░░·\\x1b[0m\\n" "${AA_DISK}" "${AA_SWAP}" " "
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mHost: \\x1b[38;5;240m%-10s  \\x1b[38;5;244mHostname: \\x1b[38;5;240m%-24s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${AA_HOST}" "${AA_HOSTNAME}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mUsername: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_USERNAME}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_PASSWD}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mIP Address: \\x1b[38;5;240m%-15s \\x1b[38;5;244mGateway: \\x1b[38;5;240m%-15s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_IPADDR}" "${AA_GATEWAY}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDNS: \\x1b[38;5;240m%-47s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_DNS}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mTimezone: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_TIMEZONE}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mSSHD Config: \\x1b[38;5;240m%-39s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_sshd}"
+printf " \\x1b[38;5;235m·\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mSSH Config: \\x1b[38;5;240m%-40s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_ssh}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░░░ \\x1b[38;5;244mSSH Key: \\x1b[38;5;240m%-43s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_sshkey}"
+printf " \\x1b[38;5;235m└─────────────────────────────────────────────·─\\x1b[38;5;242m─\\x1b[1;39m·─\\x1b[38;5;242m─\\x1b[1;39m─\\x1b[38;5;242m──────\\x1b[38;5;255m┘\\x1b[0m\\n"
+# }}}
+# Prerequisites {{{
+echo -e
+desc "${AA_DISK}: Erase"
+#/usr/bin/dd if=/dev/zero of=${AA_DISK} bs=1k count=2048
+validate "$?"
+# }}}
 
-# vim: set ft=sh ts=4 sw=4 noet:
+# vim: ft=sh ts=4 sw=4 noet:
