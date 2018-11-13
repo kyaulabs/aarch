@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.025 2018/11/12 16:48:35 kyau Exp $
+# $Arch: autoarch,v 1.026 2018/11/12 16:53:21 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -166,6 +166,10 @@ desc "Internet Status"
 validate "$?"
 # }}}
 # Prerequisites: Disk {{{
+desc "${AA_DISK}: Unmount All"
+/usr/bin/umount -R /mnt >/dev/null 2>&1
+validate "$?"
+
 desc "${AA_DISK}: Erase (block-level wipe)"
 /usr/bin/dd if=/dev/zero of=${AA_DISK} bs=1k count=2048 >/dev/null 2>&1
 validate "$?"
