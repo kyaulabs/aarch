@@ -1,0 +1,138 @@
+# $Arch: glftpd.pkg,v 1.000 2018/11/12 23:55:34 kyau Exp $
+
+BINS="sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip zip"
+usetcpd="n"
+jail="y"
+jaildir="/jail"
+mkdir -p "$jaildir"
+useprivgroup="y"
+groupcmd="group"
+privgroup="akira" # default: glftpd
+if [ $(grep -q -E "^${privgroup}:" /etc/group) ]; then
+	echo -e "ERROR: group already exists!"
+fi
+${groupcmd}add $privgroup
+privusers="kyau,sn00p"
+for user in $privusers; do
+	gpasswd -a $user $privgroup
+done
+chmod 750 "$jaildir"
+chown root:"$privgroup" "$jaildir"
+glroot="/glftpd"
+if [ -d "$jaildir$glroot" ]; then
+	echo -e "ERROR: directory exists!"
+fi
+mkdir -p "$jaildir$glroot"
+cp -Rf * .[^.]* "$jaildir$glroot"
+mkdir -m755 "$jaildir$glroot/"{dev,site,ftp-data/msgs}
+confdir="$jaildir"
+for bin in $BINS; do
+	echo -e "$(type -P $bin) => $jaildir$glroot/bin"
+	cp -f "$(type -P $bin)" "$jaildir$glroot/bin"
+done
+mknod -m 666 "$jaildir$glroot/dev/null" c 1 3
+mknod -m 666 "$jaildir$glroot/dev/full" c 1 7
+mknod -m 666 "$jaildir$glroot/dev/zero" c 1 5
+mknod -m 666 "$jaildir$glroot/dev/urandom" c 1 9
+servicename="akira" # default: glftpd
+ipckey=0xBADC0FEE
+confsource="$jaildir$glroot/bin/sources/glconf.h"
+echo "#define GLCONF  \"$confdir/${servicename}.conf\"" >${confsource}.tmp && grep -v "^#define GLCONF" ${confsource} >> ${confsource}.tmp && mv ${confsource}.tmp ${confsource}
+usegcc=$(type -P gcc)
+gccflags="-O2 -Wall -o"
+for cfile in $jaildir$glroot/bin/sources/*.c; do
+	base="$(basename "${cfile%.c}")"
+	[ -f "$jaildir$glroot/bin/$base" ] && rm -f "$jaildir$glroot/bin/$base"
+	$usegcc $gccflags "$jaildir$glroot/bin/$base" "$cfile" >/dev/null 2>&1 || $usegcc -o "$jaildir$glroot/bin/$base" "$cfile"
+done
+
+# library stuff ?
+
+port=1337
+chmod 755 "$jaildir$glroot/ftp-data/users"
+chmod 644 "$jaildir$glroot/ftp-data/users/"*
+chmod 755 "$jaildir$glroot/ftp-data/groups"
+chmod 644 "$jaildir$glroot/ftp-data/groups/"*
+if [ -f glftpd.conf ]; then
+	conffile="glftpd.conf"
+elif [ -f glftpd.conf.dist ]; then
+	conffile="glftpd.conf.dist"
+else
+	echo -e "ERROR: cannot find glftpd.conf"
+fi
+if [ -f $jaildir$glroot/glftpd.conf ]; then
+	mv "$jaildir$glroot/glftpd.conf" "$jaildir$glroot/glftpd.conf.dist"
+fi
+if [ -n "$conffile" ]; then
+	if [ -f "$confdir/${servicename}.conf" ]; then
+		mv "$confdir/${servicename}.conf" "$confdir/${servicename}.conf.bak"
+	fi
+	sed "s:^\([         ]*rootpath[     ]*\).*$:\1$jaildir$glroot:" $conffile > "$confdir/${servicename}.conf"
+	if [ ! -z "$ipckey" ]; then
+		echo -e "\n#ipc_key - please read docs on this one\nipc_key         $ipckey" >> "$confdir/${servicename}.conf"
+	fi
+	if [ -f glftpd.conf ]; then
+		mv glftpd.conf glftpd.conf.dist
+	fi
+fi
+glstrings="-s$jaildir$glroot/bin/glstrings.bin"
+euroweek="-e "
+ltime=/etc/localtime
+cp /etc/localtime $jaildir$glroot/etc/
+mkdir -p $jaildir$glroot/usr/lib
+cp /etc/localtime $jaildir$glroot/usr/lib/zoneinfo
+mkdir -p $jaildir$glroot/usr/share
+cp /etc/localtime $jaildir$glroot/usr/share/zoneinfo
+tls="$jaildir$glroot/etc"
+opensslbin=$(type -P openssl)
+tlsname=AKiRA
+type=ecdsa
+servbase=$tlsname
+base=ftpd-$type
+$opensslbin ecparam -out $base.key -name secp384r1 -genkey 2>&1
+$opensslbin req -new -x509 -days 9000 -key $base.key -out $base.crt << EOF
+.
+.
+.
+.
+.
+$servbase
+.
+EOF
+cat $base.key > $base.pem
+cat $base.crt >> $base.pem
+rm -f $base.key $base.crt
+chmod 600 $base.pem
+mv -f $base.pem $tls/
+tlsfull="$tls/$base.pem"
+if [ `cat $confdir/${servicename}.conf | grep "CERT_FILE /glftpd/ftpd-ecdsa.pem" | wc -l` -ne 0 ]; then
+	cat $confdir/${servicename}.conf | sed "s|CERT_FILE /glftpd/ftpd-ecdsa.pem|CERT_FILE $tls/$base.pem|" >$confdir/${servicename}.conf.tmp && mv $confdir/${servicename}.conf.tmp $confdir/${servicename}.conf
+fi
+cp -f /etc/resolv.conf $jaildir$glroot/etc/
+cat <<EOF > "/etc/systemd/system/$servicename@.service"
+[Unit]
+Description=$servicename per connection server
+[Service]
+ExecStart=-$jaildir$glroot/bin/glftpd -l -i -o $confpath $glstrings $euroweek
+StandardInput=socket
+SyslogFacility=ftp
+EOF
+cat <<EOF > "/etc/systemd/system/$servicename.socket"
+[Unit]
+Description=$servicename socket
+[Socket]
+ReusePort=true
+ListenStream=[::]:$port
+Accept=yes
+#MaxConnections=64
+[Install]
+WantedBy=sockets.target
+EOF
+systemctl daemon-reload
+systemctl enable "$servicename.socket"
+systemctl start "$servicename.socket"
+(crontab -l 2>/dev/null; echo "0 0 * * * $jaildir$glroot/bin/reset ${euroweek}${confpath}") | crontab -
+chmod 4777 $jaildir$glroot/site
+
+
+# vim: ft=sh ts=4 sw=4 noet:
