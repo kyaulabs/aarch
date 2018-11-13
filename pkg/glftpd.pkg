@@ -1,65 +1,79 @@
 #!/bin/bash
 
-# $Arch: glftpd.pkg,v 1.004 2018/11/13 02:38:30 kyau Exp $
+# $Arch: glftpd.pkg,v 1.018 2018/11/13 14:20:08 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
-PACKAGE=glftpd
-PACKAGE_URL=https://glftpd.io/files/
-PACKAGE_FILE=glftpd-LNX-2.09.BETA1_1.1.0h_x64.tgz
 
 # ANSI Output {{{
-function print_package() {
-    printf "\\x1b[38;5;190m\\u039e\\x1b[0m Package: \\x1b[38;5;190m%s\\n" "$PACKAGE"
+function section() {
+    printf "\\x1b[38;5;82m\\u039e\\x1b[0m %s \\x1b[38;5;82m\\u039e\\x1b[0m\\n" "$1"
 }
 function desc() {
-	>&2 printf "\\x1b[38;5;32m\\u25ab\\u25aa \\x1b[38;5;252m%s\\x1b[0m " "${1}"
+	>&2 printf "\\x1b[38;5;32m\\u25ab\\u25aa \\x1b[38;5;250m%s: \\x1b[38;5;245m%s\\x1b[0m " "$1" "$2"
 }
 function validate() {
 	# if failure else success
 	if [[ "$1" -ne 0 ]]; then
-		>&2 printf "\\x1b[31m\\u203c\\x1b[0m\\n"
+		>&2 printf "\\x1b[38;5;160m\\u203c\\x1b[0m\\n"
 		exit 1
 	else
 		>&2 printf "\\x1b[1;32m\\u2713\\x1b[0m\\n"
 	fi
 }
+function warning() {
+	printf "\\x1b[38;5;226m\\u203c\\x1b[0m %s\\n" "$1"
+}
+function fmsg() {
+	printf "   \\x1b[38;5;160m\\u00bb\\x1b[0m %s \\x1b[38;5;160m\\u00ab\\x1b[0m" "$1"
+}
 # }}}
-# Download Package {{{
+# Package Details {{{
+PACKAGE=glftpd
+PACKAGE_URL=https://glftpd.io/files/
+PACKAGE_FILE=glftpd-LNX-2.09.BETA1_1.1.0h_x64.tgz
+# }}}
+# Package Settings (EDIT HERE!) {{{
+sitename="akira"
+port=1337
+privusers="kyau"		# Syntax: user1,user2,...
+jaildir="/jail"
+glroot="/glftpd"
+# }}}
+# Variables: Load {{{
+BINS=(sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip zip ldconfig)
+ipckey=0xBADC0FEE
+confsource="$jaildir$glroot/bin/sources/glconf.h"
+usegcc=$(type -P gcc)
+gccflags="-O2 -Wall -o"
+glstrings="-s$jaildir$glroot/bin/glstrings.bin"
+euroweek="-e "
+tls="$jaildir$glroot/etc"
+opensslbin=$(type -P openssl)
+base=ftpd-ecdsa
+tlsfull="$tls/$base.pem"
+confpath="-r $jaildir/${sitename}.conf"
+# }}}
+# Install: Download Package {{{
 if [ "$EUID" -ne 0 ]
   then echo "Please run as root"
   exit
 fi
 cd /tmp
-print_package
-desc "Install: cronie curl lib32-glibc openssl tcl unzip zip"
+section "Download"
+desc "Install" "cronie curl lib32-glibc openssl tcl unzip zip"
 pacman -S cronie curl lib32-glibc openssl tcl unzip zip --noconfirm >/dev/null 2>&1
 validate "$?"
 
-desc "Download: $PACKAGE"
+desc "Download" "$PACKAGE"
 curl -O $PACKAGE_URL$PACKAGE_FILE >/dev/null 2>&1
 validate "$?"
 
-desc "Extract: $PACKAGE"
+desc "Extract" "$PACKAGE"
 tar xf $PACKAGE_FILE; rm $PACKAGE_FILE >/dev/null 2>&1
 validate "$?"
 
 cd ${PACKAGE_FILE::-4}
-# }}}
-# Variables: Load {{{
-BINS="sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip zip"
-jaildir="/jail"
-groupcmd="group"
-privgroup="akira" # default: glftpd
-privusers="kyau" # example: user1,user2
-glroot="/glftpd"
-confdir="$jaildir"
-servicename="akira" # default: glftpd
-ipckey=0xBADC0FEE
-confsource="$jaildir$glroot/bin/sources/glconf.h"
-usegcc=$(type -P gcc)
-gccflags="-O2 -Wall -o"
-port=1337
 if [ -f glftpd.conf ]; then
 	conffile="glftpd.conf"
 elif [ -f glftpd.conf.dist ]; then
@@ -67,122 +81,207 @@ elif [ -f glftpd.conf.dist ]; then
 else
 	echo -e "ERROR: cannot find glftpd.conf"
 fi
-glstrings="-s$jaildir$glroot/bin/glstrings.bin"
-euroweek="-e "
-ltime=/etc/localtime
-tls="$jaildir$glroot/etc"
-opensslbin=$(type -P openssl)
-tlsname=AKiRA
-servbase=$tlsname
-base=ftpd-ecdsa
-tlsfull="$tls/$base.pem"
-bindir="`echo $jaildir$glroot/bin | tr -s '/'`"
 # }}}
+# Install: Jail Setup {{{
+section "Jail Setup"
+desc "Create" "$jaildir"
+mkdir -m750 -p "$jaildir"
+validate "$?"
 
-mkdir -p "$jaildir"
-if [ $(grep -q -E "^${privgroup}:" /etc/group) ]; then
-	echo -e "ERROR: group already exists!"
+grep -q -E "^$sitename:" /etc/group
+if [ $? -eq 0 ]; then
+	warning "group '${sitename}' already exists"
+else
+	desc "Groupadd" "$sitename"
+	groupadd $sitename
+	validate "$?"
 fi
-${groupcmd}add $privgroup
+
 for user in $privusers; do
-	gpasswd -a $user $privgroup >/dev/null 2>&1
+	desc "Groupmod" "$user => $sitename"
+	gpasswd -a $user $sitename >/dev/null 2>&1
+	validate "$?"
 done
-chmod 750 "$jaildir"
-chown root:"$privgroup" "$jaildir"
+
+desc "Permissions" "$jaildir"
+chown root:"$sitename" "$jaildir"
+validate "$?"
+# }}}
+# Install: Base Setup {{{
+section "Base Setup"
 if [ -d "$jaildir$glroot" ]; then
-	echo -e "ERROR: directory exists!"
+	echo -e "$jaildir$glroot directory exists!"
+	exit 1
+else
+	desc "Create" "$jaildir$glroot"
+	mkdir -p "$jaildir$glroot"
+	validate "$?"
 fi
-mkdir -p "$jaildir$glroot"
+
+desc "Copy" "$PACKAGE"
 cp -Rf * "$jaildir$glroot"
+validate "$?"
+
+desc "Create" "dev site ftp-data msgs"
 mkdir -m755 "$jaildir$glroot/"{dev,site,ftp-data/msgs}
-for bin in $BINS; do
-	echo -e "$(type -P $bin) => $jaildir$glroot/bin"
-	cp -f "$(type -P $bin)" "$jaildir$glroot/bin"
+validate "$?"
+
+for bin in ${BINS[*]}; do
+	name=$(type -P $bin)
+	desc "Copy" "$name => $jaildir$glroot/bin"
+	cp -f "$name" "$jaildir$glroot/bin"
+	validate "$?"
 done
+
+desc "Make Node" "$jaildir$glroot/dev/null"
 mknod -m 666 "$jaildir$glroot/dev/null" c 1 3
+validate "$?"
+
+desc "Make Node" "$jaildir$glroot/dev/full"
 mknod -m 666 "$jaildir$glroot/dev/full" c 1 7
+validate "$?"
+
+desc "Make Node" "$jaildir$glroot/dev/zero"
 mknod -m 666 "$jaildir$glroot/dev/zero" c 1 5
+validate "$?"
+
+desc "Make Node" "$jaildir$glroot/dev/urandom"
 mknod -m 666 "$jaildir$glroot/dev/urandom" c 1 9
-echo "#define GLCONF  \"$confdir/${servicename}.conf\"" >${confsource}.tmp && grep -v "^#define GLCONF" ${confsource} >> ${confsource}.tmp && mv ${confsource}.tmp ${confsource}
+validate "$?"
+# }}}
+# Install: Compiling Source {{{
+section "Compiling Source"
+desc "Generate" "$confsource"
+echo "#define GLCONF  \"$jaildir/${sitename}.conf\"" >${confsource}.tmp && grep -v "^#define GLCONF" ${confsource} >> ${confsource}.tmp && mv ${confsource}.tmp ${confsource}
+validate "$?"
+
 for cfile in $jaildir$glroot/bin/sources/*.c; do
 	base="$(basename "${cfile%.c}")"
 	[ -f "$jaildir$glroot/bin/$base" ] && rm -f "$jaildir$glroot/bin/$base"
+	desc "Compile" "$jaildir$glroot/bin/$base"
 	$usegcc $gccflags "$jaildir$glroot/bin/$base" "$cfile" >/dev/null 2>&1 || $usegcc -o "$jaildir$glroot/bin/$base" "$cfile"
+	validate "$?"
 done
 
-# library stuff ?
-function lddsequence() {
+echo -n "" > "$jaildir$glroot/etc/ld.so.conf"
+bindir="`echo $jaildir$glroot/bin | tr -s '/'`"
+ldd $bindir/* 2>/dev/null | grep -v "^$bindir" | tr ' \t' '\n' | grep -e "^/" | sort | uniq | while read lib; do
 	libdir="$(dirname $lib)"
 	if [ -f "$lib" ]; then
-		mkdir -p "$jaildir$glroot$libdir"
-		cp -f "$lib" "$jaildir$glroot$libdir"
-	elif [ -f "/usr/compat/linux/$lib" ]; then
-		mkdir -p "$jaildir$glroot/usr/compat/linux"
-		cp -f "/usr/compat/linux/$lib" "$jaildir$glroot/usr/compat/linux/"
+		desc "Copy" "$lib => $jaildir$glroot$libdir"
+		mkdir -p "$jaildir$glroot$libdir" && cp -f "$lib" "$jaildir$glroot$libdir"
+		validate "$?"
 	else
 		echo -e "ERROR: cannot find $(basename $lib), copy to $jaildir$glroot$libdir manually"
 	fi
-}
-ldd $bindir/* 2>/dev/null | grep -v "^$bindir" | tr ' \t' '\n' | grep -e "^/" | sort | uniq | while read lib; do
-	lddsequence
 done
-sort "$jaildir$glroot/etc/ld.so.conf" | uniq >"$jaildir$glroot/etc/ld.so.temp" && mv "$jaildir$glroot/etc/ld.so.conf"
-chroot "$jaildir$glroot" /bin/ldconfig
 
-chmod 755 "$jaildir$glroot/ftp-data/users"
-chmod 644 "$jaildir$glroot/ftp-data/users/"*
-chmod 755 "$jaildir$glroot/ftp-data/groups"
-chmod 644 "$jaildir$glroot/ftp-data/groups/"*
+desc "Create" "$jaildir$glroot/etc/ld.so.conf"
+sort "$jaildir$glroot/etc/ld.so.conf" | uniq >"$jaildir$glroot/etc/ld.so.temp" && mv "$jaildir$glroot/etc/ld.so.temp" "$jaildir$glroot/etc/ld.so.conf"
+validate "$?"
+
+desc "Chroot" "/bin/ldconfig"
+chroot "$jaildir$glroot" /bin/ldconfig
+validate "$?"
+# }}}
+# Install: System Setup {{{
+section "System Setup"
+desc "Permissions" "ftp-data"
+chmod 755 "$jaildir$glroot/ftp-data/users" "$jaildir$glroot/ftp-data/groups" && chmod 644 "$jaildir$glroot/ftp-data/users/"* "$jaildir$glroot/ftp-data/groups/"*
+validate "$?"
+
 if [ -f $jaildir$glroot/glftpd.conf ]; then
+	desc "Create" "Default Config"
 	mv "$jaildir$glroot/glftpd.conf" "$jaildir$glroot/glftpd.conf.dist"
+	validate "$?"
 fi
 if [ -n "$conffile" ]; then
-	if [ -f "$confdir/${servicename}.conf" ]; then
-		mv "$confdir/${servicename}.conf" "$confdir/${servicename}.conf.bak"
+	if [ -f "$jaildir/${sitename}.conf" ]; then
+		desc "Backup" "Current Config"
+		mv "$jaildir/${sitename}.conf" "$jaildir/${sitename}.conf.bak"
+		validate "$?"
 	fi
-	sed "s:^\([         ]*rootpath[     ]*\).*$:\1$jaildir$glroot:" $conffile > "$confdir/${servicename}.conf"
+	desc "Create" "Site Config"
+	sed "s:^\([         ]*rootpath[     ]*\).*$:\1$jaildir$glroot:" $conffile > "$jaildir/${sitename}.conf"
+	validate "$?"
 	if [ ! -z "$ipckey" ]; then
-		echo -e "\n#ipc_key - please read docs on this one\nipc_key         $ipckey" >> "$confdir/${servicename}.conf"
+		desc "Modify" "Site Config"
+		echo -e "\n#ipc_key - please read docs on this one\nipc_key         $ipckey" >> "$jaildir/${sitename}.conf"
+		validate "$?"
 	fi
 	if [ -f glftpd.conf ]; then
+		desc "Create" "Default Config"
 		mv glftpd.conf glftpd.conf.dist
+		validate "$?"
 	fi
 fi
-cp /etc/localtime $jaildir$glroot/etc/
-mkdir -p $jaildir$glroot/usr/lib
-cp /etc/localtime $jaildir$glroot/usr/lib/zoneinfo
-mkdir -p $jaildir$glroot/usr/share
-cp /etc/localtime $jaildir$glroot/usr/share/zoneinfo
+desc "Fix" "Chroot localtime"
+mkdir -p $jaildir$glroot/usr/lib $jaildir$glroot/usr/share && cp /etc/localtime $jaildir$glroot/etc/ && cp /etc/localtime $jaildir$glroot/usr/lib/zoneinfo && cp /etc/localtime $jaildir$glroot/usr/share/zoneinfo
+validate "$?"
+# }}}
+# Install: SSL/TLS Setup {{{
+section "SSL/TLS Setup"
+desc "Generate" "ECDSA Key"
 $opensslbin ecparam -out $base.key -name secp384r1 -genkey 2>&1
-$opensslbin req -new -x509 -days 9000 -key $base.key -out $base.crt << EOF
+validate "$?"
+
+touch /root/.rnd
+desc "Generate" "ECDSA Cert"
+$opensslbin req -new -x509 -days 9000 -key $base.key -out $base.crt >/dev/null 2>&1 << EOF
 .
 .
 .
 .
 .
-$servbase
+$sitename
 .
 EOF
-cat $base.key > $base.pem
-cat $base.crt >> $base.pem
-rm -f $base.key $base.crt
-chmod 600 $base.pem
-mv -f $base.pem $tls/
-if [ `cat $confdir/${servicename}.conf | grep "CERT_FILE /glftpd/ftpd-ecdsa.pem" | wc -l` -ne 0 ]; then
-	cat $confdir/${servicename}.conf | sed "s|CERT_FILE /glftpd/ftpd-ecdsa.pem|CERT_FILE $tls/$base.pem|" >$confdir/${servicename}.conf.tmp && mv $confdir/${servicename}.conf.tmp $confdir/${servicename}.conf
+validate "$?"
+rm /root/.rnd
+
+desc "Create" "TLS Certificate"
+cat $base.key > $base.pem && cat $base.crt >> $base.pem && rm -f $base.key $base.crt
+validate "$?"
+
+desc "Permissions" "TLS Certificate"
+chmod 600 $base.pem && mv -f $base.pem $tls/
+validate "$?"
+
+if [ `cat $jaildir/${sitename}.conf | grep "CERT_FILE /glftpd/ftpd-ecdsa.pem" | wc -l` -ne 0 ]; then
+	desc "Add" "TLS Certificate => $jaildir/${sitename}.conf"
+	cat $jaildir/${sitename}.conf | sed "s|CERT_FILE /glftpd/ftpd-ecdsa.pem|CERT_FILE $tls/$base.pem|" >$jaildir/${sitename}.conf.tmp && mv $jaildir/${sitename}.conf.tmp $jaildir/${sitename}.conf
+	validate "$?"
 fi
+# }}}
+# Install: Starting glFTPd {{{
+section "Starting glFTPd"
+desc "Copy" "/etc/resolv.conf => $jaildir$glroot/etc/resolv.conf"
 cp -f /etc/resolv.conf $jaildir$glroot/etc/
-cat <<EOF > "/etc/systemd/system/$servicename@.service"
+validate "$?"
+
+
+if [ -f "/etc/systemd/system/$sitename@.service" ]; then
+	warning "file '/etc/systemd/system/$sitename@.service' already exists"
+else
+	desc "Create" "/etc/systemd/system/$sitename@.service"
+	cat <<EOF > "/etc/systemd/system/$sitename@.service"
 [Unit]
-Description=$servicename per connection server
+Description=$sitename per connection server
 [Service]
 ExecStart=-$jaildir$glroot/bin/glftpd -l -i -o $confpath $glstrings $euroweek
 StandardInput=socket
 SyslogFacility=ftp
 EOF
-cat <<EOF > "/etc/systemd/system/$servicename.socket"
+	validate "$?"
+fi
+
+if [ -f "/etc/systemd/system/$sitename.socket" ]; then
+	warning "file '/etc/systemd/system/$sitename.socket' already exists"
+else
+	desc "Create" "/etc/systemd/system/$sitename.socket"
+	cat <<EOF > "/etc/systemd/system/$sitename.socket"
 [Unit]
-Description=$servicename socket
+Description=$sitename socket
 [Socket]
 ReusePort=true
 ListenStream=[::]:$port
@@ -191,10 +290,38 @@ Accept=yes
 [Install]
 WantedBy=sockets.target
 EOF
+	validate "$?"
+fi
+
+desc "Systemd" "Reload Daemons"
 systemctl daemon-reload
-systemctl enable "$servicename.socket"
-systemctl start "$servicename.socket"
-(crontab -l 2>/dev/null; echo "0 0 * * * $jaildir$glroot/bin/reset ${euroweek}${confpath}") | crontab -
+validate "$?"
+
+desc "Systemd" "Enable ($sitename.socket)"
+systemctl enable "$sitename.socket" >/dev/null 2>&1
+validate "$?"
+
+desc "Systemd" "Start ($sitename.socket)"
+systemctl start "$sitename.socket"
+validate "$?"
+
+desc "Crontab" "Add Reset"
+#(crontab -l 2>/dev/null; echo "0 0 * * * $jaildir$glroot/bin/reset ${euroweek}${confpath}") | crontab -
+{ crontab -l | grep -v "$jaildir$glroot/bin/reset"
+  echo "0  0 * * *      $jaildir$glroot/bin/reset ${euroweek}${confpath}"
+} | crontab - > /dev/null
+validate "$?"
+
+desc "Permissions" "$jaildir$glroot/site"
 chmod 4777 $jaildir$glroot/site
+validate "$?"
+
+desc "Fix" "Permissions"
+chown -R root:$sitename $jaildir && chmod -R g=u $jaildir
+validate "$?"
+# }}}
+echo -e
+fmsg "Site Config: \\x1b[38;5;6m$jaildir/${sitename}.conf\\n\\n"
+cd && rm -rf /tmp/${PACKAGE_FILE::-4}
 
 # vim: ft=sh ts=4 sw=4 noet:
