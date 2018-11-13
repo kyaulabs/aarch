@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.037 2018/11/12 22:35:00 kyau Exp $
+# $Arch: autoarch,v 1.038 2018/11/12 22:58:48 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -357,7 +357,7 @@ echo -e "127.0.0.1\t${AA_HOST}.localdomain\t${AA_HOST}" >> /mnt/etc/hosts
 validate "$?"
 
 desc "Modify: /etc/resolv.conf"
-echo -e "${AA_DNS}" >> /mnt/etc/resolv.conf
+echo -e "nameserver ${AA_DNS}" >> /mnt/etc/resolv.conf
 validate "$?"
 
 desc "Symlink: /etc/localtime"
