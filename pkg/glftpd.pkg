@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: glftpd.pkg,v 1.018 2018/11/13 14:20:08 kyau Exp $
+# $Arch: glftpd.pkg,v 1.019 2018/11/13 17:58:44 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -25,7 +25,7 @@ function warning() {
 	printf "\\x1b[38;5;226m\\u203c\\x1b[0m %s\\n" "$1"
 }
 function fmsg() {
-	printf "   \\x1b[38;5;160m\\u00bb\\x1b[0m %s \\x1b[38;5;160m\\u00ab\\x1b[0m" "$1"
+	printf "   \\x1b[38;5;160m\\u00bb\\x1b[0m %s \\x1b[38;5;160m\\u00ab\\x1b[0m\\n" "$1"
 }
 # }}}
 # Package Details {{{
@@ -305,13 +305,6 @@ desc "Systemd" "Start ($sitename.socket)"
 systemctl start "$sitename.socket"
 validate "$?"
 
-desc "Crontab" "Add Reset"
-#(crontab -l 2>/dev/null; echo "0 0 * * * $jaildir$glroot/bin/reset ${euroweek}${confpath}") | crontab -
-{ crontab -l | grep -v "$jaildir$glroot/bin/reset"
-  echo "0  0 * * *      $jaildir$glroot/bin/reset ${euroweek}${confpath}"
-} | crontab - > /dev/null
-validate "$?"
-
 desc "Permissions" "$jaildir$glroot/site"
 chmod 4777 $jaildir$glroot/site
 validate "$?"
@@ -321,7 +314,9 @@ chown -R root:$sitename $jaildir && chmod -R g=u $jaildir
 validate "$?"
 # }}}
 echo -e
-fmsg "Site Config: \\x1b[38;5;6m$jaildir/${sitename}.conf\\n\\n"
+fmsg "CRONTAB: 0  0 * * *      $jaildir$glroot/bin/reset ${euroweek}${confpath}"
+fmsg "Site Config: \\x1b[38;5;6m$jaildir/${sitename}.conf"
+echo -e
 cd && rm -rf /tmp/${PACKAGE_FILE::-4}
 
 # vim: ft=sh ts=4 sw=4 noet:
