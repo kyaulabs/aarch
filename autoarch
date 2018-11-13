@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.028 2018/11/12 17:11:21 kyau Exp $
+# $Arch: autoarch,v 1.029 2018/11/12 17:18:26 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -340,7 +340,7 @@ desc "Modify: Oldschool NIC Names"
 validate "$?"
 
 desc "Config: eth0"
-echo -e "[Match]\nName=eth0\n\n[Network]\nAddress=${A_IPADDR}/24\nGateway=${A_GATEWAY}" > /mnt/etc/systemd/network/eth0.network
+echo -e "[Match]\nName=eth0\n\n[Network]\nAddress=${AA_IPADDR}/24\nGateway=${AA_GATEWAY}" > /mnt/etc/systemd/network/eth0.network
 validate "$?"
 
 desc "Enable Service: systemd-networkd"
