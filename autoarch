@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.022 2018/11/12 16:15:05 kyau Exp $
+# $Arch: autoarch,v 1.023 2018/11/12 16:29:19 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -187,6 +187,10 @@ desc "${AA_DISK}: Labels"
 validate "$?"
 # }}}
 # Prerequisites: LVM {{{
+desc "LVM: Clear Metadata"
+/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
+validate "$?"
+
 desc "LVM: Initialize Physical Volume"
 /usr/bin/pvcreate --yes ${AA_DISK}1 >/dev/null 2>&1
 validate "$?"
