@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.031 2018/11/12 19:08:35 kyau Exp $
+# $Arch: autoarch,v 1.032 2018/11/12 19:18:41 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -376,7 +376,7 @@ desc "Generate: Locale"
 validate "$?"
 
 desc "Modify: /etc/locale.conf"
-/usr/bin/arch-chroot /mnt localectl set-locale LANG=en_US.UTF-8
+echo "LANG=en_US.UTF-8" > /mnt/etc/locale.conf
 validate "$?"
 
 desc "Modify: /etc/pacman.d/mirrorlist"
@@ -560,6 +560,7 @@ desc "Create: /root/firstboot"
 /usr/bin/cat > /mnt/root/firstboot << EOF
 #!/bin/sh
 timedatectl set-ntp true
+localectl set-locale LANG=en_US.UTF-8
 systemctl disable firstboot.service
 rm /etc/systemd/system/firstboot.service
 rm /root/firstboot
