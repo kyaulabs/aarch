@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.034 2018/11/12 20:47:23 kyau Exp $
+# $Arch: autoarch,v 1.035 2018/11/12 21:03:27 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -146,11 +146,12 @@ print_logo
 p_sshd=${AA_SSHD_CONFIG##*/}
 p_ssh=${AA_SSH_CONFIG##*/}
 p_sshkey=${AA_SSH_KEY##*/}
+p_passwd=$(head -c ${#AA_PASSWD} < /dev/zero | tr '\0' '•')
 printf " \\x1b[38;5;255m┌\\x1b[38;5;242m────\\x1b[38;5;235m─·\\x1b[38;5;242m─\x1b[38;5;235m─·─────────────────────────────────────────────────┐\\n"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDisk: \\x1b[38;5;240m%-10s  \\x1b[38;5;244mSwap: \\x1b[38;5;240m%-2sGB %-21s \\x1b[38;5;237m░░░·\\x1b[0m\\n" "${AA_DISK}" "${AA_SWAP}" " "
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mHost: \\x1b[38;5;240m%-10s  \\x1b[38;5;244mHostname: \\x1b[38;5;240m%-24s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${AA_HOST}" "${AA_HOSTNAME}"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mUsername: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_USERNAME}"
-printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_PASSWD}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_passwd}"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mIP Address: \\x1b[38;5;240m%-15s \\x1b[38;5;244mGateway: \\x1b[38;5;240m%-15s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_IPADDR}" "${AA_GATEWAY}"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDNS: \\x1b[38;5;240m%-47s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_DNS}"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mTimezone: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_TIMEZONE}"
