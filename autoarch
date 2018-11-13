@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.029 2018/11/12 17:18:26 kyau Exp $
+# $Arch: autoarch,v 1.031 2018/11/12 19:08:35 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -343,18 +343,6 @@ desc "Config: eth0"
 echo -e "[Match]\nName=eth0\n\n[Network]\nAddress=${AA_IPADDR}/24\nGateway=${AA_GATEWAY}" > /mnt/etc/systemd/network/eth0.network
 validate "$?"
 
-desc "Enable Service: systemd-networkd"
-/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd >/dev/null 2>&1
-validate "$?"
-
-desc "Enable Service: sshd"
-/usr/bin/arch-chroot /mnt systemctl enable sshd >/dev/null 2>&1
-validate "$?"
-
-desc "Enable Service: ntpd"
-/usr/bin/arch-chroot /mnt timedatectl set-ntp true
-validate "$?"
-
 desc "Modify: /etc/pacman.conf"
 /usr/bin/sed -i 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
 validate "$?"
@@ -416,12 +404,39 @@ desc "Modify: /etc/makepkg.conf"
 /usr/bin/sed -i 's/^#BUILDDIR/BUILDDIR/' /mnt/etc/makepkg.conf
 validate "$?"
 
-desc "Systemd: TTYVTDisallocate"
+desc "Systemd: Keep Boot Mesages"
 /usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d
 /usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
 [Service]
 TTYVTDisallocate=no
 EOF
+validate "$?"
+
+desc "Systemd: Turn Numlock On"
+/usr/bin/mkdir -p /mnt/etc/systemd/system/getty@.service.d
+/usr/bin/cat > /mnt/etc/systemd/system/getty@.service.d/numlock.conf << EOF
+[Service]
+ExecStartPre=/bin/sh -c 'setleds -D +num < /dev/%I'
+EOF
+validate "$?"
+
+desc "Modify: /etc/systemd/timesyncd.conf"
+/usr/bin/cat >> /mnt/etc/systemd/timesyncd.conf << EOF
+NTP=0.arch.pool.ntp.org 1.arch.pool.ntp.org 2.arch.pool.ntp.org 3.arch.pool.ntp.org
+FallbackNTP=0.pool.ntp.org 1.pool.ntp.org 0.us.pool.ntp.org
+EOF
+validate "$?"
+
+desc "Systemd: Enable (systemd-networkd.service)"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd.service >/dev/null 2>&1
+validate "$?"
+
+desc "Systemd: Enable (systemd-timesyncd.service)"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-timesyncd.service >/dev/null 2>&1
+validate "$?"
+
+desc "Systemd: Enable (sshd.socket)"
+/usr/bin/arch-chroot /mnt systemctl enable sshd.socket >/dev/null 2>&1
 validate "$?"
 # }}}
 # Install: Security {{{
@@ -514,8 +529,8 @@ table inet filter {
 EOF
 validate "$?"
 
-desc "Systemd: Enable (nftables)"
-/usr/bin/arch-chroot /mnt systemctl enable nftables >/dev/null 2>&1
+desc "Systemd: Enable (nftables.service)"
+/usr/bin/arch-chroot /mnt systemctl enable nftables.service >/dev/null 2>&1
 validate "$?"
 
 desc "Create: /etc/sudoers.d/kyaulabs"
@@ -528,6 +543,37 @@ EOF
 validate "$?"
 # }}}
 # Post-Install {{{
+desc "Create: /etc/systemd/system/firstboot.service"
+/usr/bin/cat > /mnt/etc/systemd/system/firstboot.service << EOF
+[Unit]
+Description=First Boot
+
+[Service]
+ExecStart=/root/firstboot
+
+[Install]
+WantedBy=multi-user.target
+EOF
+validate "$?"
+
+desc "Create: /root/firstboot"
+/usr/bin/cat > /mnt/root/firstboot << EOF
+#!/bin/sh
+timedatectl set-ntp true
+systemctl disable firstboot.service
+rm /etc/systemd/system/firstboot.service
+rm /root/firstboot
+EOF
+validate "$?"
+
+desc "Permissions: /root/firstboot"
+/usr/bin/chmod 755 /root/firstboot
+validate "$?"
+
+desc "Systemd: Enable (firstboot.service)"
+/usr/bin/arch-chroot /mnt systemctl enable firstboot
+validate "$?"
+
 printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m umount -R /mnt\\n"
 printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m systemctl reboot\\n\\n"
 # }}}
