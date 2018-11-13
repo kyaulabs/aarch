@@ -108,6 +108,38 @@ if [ -z ${AA_DNS+x} ]; then
 		AA_DNS="1.1.1.1"
 	fi
 fi
+# Timezone
+if [ -z ${AA_TIMEZONE} ]; then
+	printf "Timezone [America/Los_Angeles]: "
+	read AA_TIMEZONE
+	if [ -z "$AA_TIMEZONE" ]; then
+		AA_TIMEZONE="America/Los_Angeles"
+	fi
+fi
+# SSHD Config
+if [ -z ${AA_SSHD_CONFIG+x} ]; then
+	printf "Remote SSHD Config [https://gitlab.com/kyaulabs/autoarch/raw/master/etc/sshd_config]: "
+	read AA_SSHD_CONFIG
+	if [ -z "$AA_SSHD_CONFIG" ]; then
+		AA_SSHD_CONFIG="https://gitlab.com/kyaulabs/autoarch/raw/master/etc/sshd_config"
+	fi
+fi
+# SSH Config
+if [ -z ${AA_SSH_CONFIG+x} ]; then
+	printf "Remote SSH Config [https://gitlab.com/kyaulabs/autoarch/raw/master/etc/ssh_config]: "
+	read AA_SSH_CONFIG
+	if [ -z "$AA_SSH_CONFIG" ]; then
+		AA_SSH_CONFIG="https://gitlab.com/kyaulabs/autoarch/raw/master/etc/ssh_config"
+	fi
+fi
+# SSH Key
+if [ -z ${AA_SSH_KEY+x} ]; then
+	printf "Remote SSH Key [https://raw.githubusercontent.com/kyau/dotfiles/master/ssh/authorized_keys]: "
+	read AA_SSH_KEY
+	if [ -z "$AA_SSH_KEY" ]; then
+		AA_SSH_KEY="https://raw.githubusercontent.com/kyau/dotfiles/master/ssh/authorized_keys"
+	fi
+fi
 # }}}
 # Variables: Summary {{{
 print_logo
