@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.032 2018/11/12 19:18:41 kyau Exp $
+# $Arch: autoarch,v 1.033 2018/11/12 19:27:32 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -457,7 +457,7 @@ desc "Download: ~/.ssh/config"
 validate "$?"
 
 desc "Permissions: ~/.ssh/"
-/usr/bin/arch-chroot /mnt chown -R ${AA_USERNAME}:${AA_USERNAME} /mnt/${AA_USERNAME}/.ssh/
+/usr/bin/arch-chroot /mnt chown -R ${AA_USERNAME}:${AA_USERNAME} /home/${AA_USERNAME}/.ssh/
 /usr/bin/arch-chroot /mnt chmod -R go-rwx /home/${AA_USERNAME}/.ssh/
 validate "$?"
 
