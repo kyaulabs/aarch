@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.019 2018/11/12 15:46:10 kyau Exp $
+# $Arch: autoarch,v 1.021 2018/11/12 16:09:21 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -109,7 +109,7 @@ if [ -z ${AA_DNS+x} ]; then
 	fi
 fi
 # Timezone
-if [ -z ${AA_TIMEZONE} ]; then
+if [ -z ${AA_TIMEZONE+x} ]; then
 	printf "Timezone [America/Los_Angeles]: "
 	read AA_TIMEZONE
 	if [ -z "$AA_TIMEZONE" ]; then
