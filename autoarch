@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.036 2018/11/12 22:01:48 kyau Exp $
+# $Arch: autoarch,v 1.037 2018/11/12 22:35:00 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -572,7 +572,7 @@ desc "Permissions: /root/firstboot"
 validate "$?"
 
 desc "Systemd: Enable (firstboot.service)"
-/usr/bin/arch-chroot /mnt systemctl enable firstboot
+/usr/bin/arch-chroot /mnt systemctl enable firstboot >/dev/null 2>&1
 validate "$?"
 
 printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m umount -R /mnt\\n"
