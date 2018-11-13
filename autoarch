@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.035 2018/11/12 21:03:27 kyau Exp $
+# $Arch: autoarch,v 1.036 2018/11/12 22:01:48 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -568,7 +568,7 @@ EOF
 validate "$?"
 
 desc "Permissions: /root/firstboot"
-/usr/bin/chmod 755 /root/firstboot
+/usr/bin/chmod 755 /mnt/root/firstboot
 validate "$?"
 
 desc "Systemd: Enable (firstboot.service)"
