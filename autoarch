@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.027 2018/11/12 16:58:16 kyau Exp $
+# $Arch: autoarch,v 1.028 2018/11/12 17:11:21 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -295,7 +295,7 @@ desc "Install: Refind"
 validate "$?"
 
 desc "Modify: /boot/EFI/BOOT/refind.conf"
-UUID=$(blkid -s PARTUUID -o value ${A_INSTALL}2)
+UUID=$(blkid -s PARTUUID -o value ${AA_DISK}2)
 /usr/bin/cat > /mnt/boot/EFI/BOOT/refind.conf <<EOF
 timeout 10
 scan_driver_dirs EFI/BOOT/drivers_x64,EFI/BOOT/drivers
