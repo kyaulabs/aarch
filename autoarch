@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.024 2018/11/12 16:39:26 kyau Exp $
+# $Arch: autoarch,v 1.025 2018/11/12 16:48:35 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -22,10 +22,10 @@ function desc() {
 function validate() {
 	# if failure else success
 	if [[ "$1" -ne 0 ]]; then
-		>&2 printf "\\x1b[31m \\u203c \\x1b[0m\\n"
+		>&2 printf "\\x1b[31m\\u203c\\x1b[0m\\n"
 		exit 1
 	else
-		>&2 printf "\\x1b[1;32m \\u2713 \\x1b[0m\\n"
+		>&2 printf "\\x1b[1;32m\\u2713\\x1b[0m\\n"
 	fi
 }
 # }}}
@@ -276,7 +276,8 @@ echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc >
 validate "$?"
 
 desc "Permissions: /bin/su"
-/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su-l >/dev/null 2>&1
+/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su >/dev/null 2>&1
+/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su-l >/dev/null 2>&1
 validate "$?"
 
 desc "Permissions: /boot, /root, /home/${AA_USERNAME}"
