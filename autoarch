@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.021 2018/11/12 16:09:21 kyau Exp $
+# $Arch: autoarch,v 1.022 2018/11/12 16:15:05 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -175,32 +175,32 @@ desc "${AA_DISK}: Erase (filesystem signature)"
 validate "$?"
 
 desc "${AA_DISK}: Erase (MBR/GPT data structs)"
-/usr/sbin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
+/usr/bin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
 validate "$?"
 
 desc "${AA_DISK}: Partition"
-/usr/sbin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8300 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
+/usr/bin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8300 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
 validate "$?"
 
 desc "${AA_DISK}: Labels"
-/usr/sbin/sgdisk -c 1:"LVM2" -c 2:"UEFI" ${AA_DISK} >/dev/null 2>&1
+/usr/bin/sgdisk -c 1:"LVM2" -c 2:"UEFI" ${AA_DISK} >/dev/null 2>&1
 validate "$?"
 # }}}
 # Prerequisites: LVM {{{
 desc "LVM: Initialize Physical Volume"
-/usr/sbin/pvcreate --yes ${AA_DISK}1 >/dev/null 2>&1
+/usr/bin/pvcreate --yes ${AA_DISK}1 >/dev/null 2>&1
 validate "$?"
 
 desc "LVM: Create Volume Group"
-/usr/sbin/vgcreate --yes ${AA_HOST} ${AA_DISK}1 >/dev/null 2>&1
+/usr/bin/vgcreate --yes ${AA_HOST} ${AA_DISK}1 >/dev/null 2>&1
 validate "$?"
 
 desc "LVM: Create Logical Volume (${AA_HOST}-swap)"
-/usr/sbin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
+/usr/bin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
 validate "$?"
 
 desc "LVM: Create Logical Volume (${AA_HOST}-root)"
-/usr/sbin/lvcreate  --yes -l +100%FREE ${AA_HOST} --name root >/dev/null 2>&1
+/usr/bin/lvcreate  --yes -l +100%FREE ${AA_HOST} --name root >/dev/null 2>&1
 validate "$?"
 # }}}
 # Prerequisites: Filesystems {{{
@@ -213,11 +213,11 @@ desc "Format: FAT32 (${AA_DISK}2)"
 validate "$?"
 
 desc "Swap: Create"
-/usr/sbin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+/usr/bin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
 validate "$?"
 
 desc "Swap: Enable"
-/usr/sbin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+/usr/bin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
 validate "$?"
 
 desc "Mount: $(echo ${AA_HOST} | awk '{print toupper($0)}') => /mnt"
@@ -225,7 +225,7 @@ desc "Mount: $(echo ${AA_HOST} | awk '{print toupper($0)}') => /mnt"
 validate "$?"
 
 desc "Create: /boot"
-/usr/sbin/mkdir /mnt/boot >/dev/null 2>&1
+/usr/bin/mkdir /mnt/boot >/dev/null 2>&1
 validate "$?"
 
 desc "Mount: UEFI => /mnt/boot"
@@ -267,7 +267,7 @@ desc "Modify: User Password"
 validate "$?"
 
 desc "Modify: Root \$EDITOR"
-/usr/sbin/echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc >/dev/null 2>&1
+echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc >/dev/null 2>&1
 validate "$?"
 
 desc "Permissions: /bin/su"
@@ -303,11 +303,11 @@ EOF
 validate "$?"
 
 desc "Permissions: /tmp"
-/usr/sbin/echo -e "tmpfs\t/tmp\ttmpfs\trw,nosuid,nodev,noatime,mode=1777\t0\t0" >> /mnt/etc/fstab 
+echo -e "tmpfs\t/tmp\ttmpfs\trw,nosuid,nodev,noatime,mode=1777\t0\t0" >> /mnt/etc/fstab 
 validate "$?"
 
 desc "Permissions: /proc"
-/usr/sbin/echo -e "proc\t/proc\tproc\tnosuid,nodev,noexec,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
+echo -e "proc\t/proc\tproc\tnosuid,nodev,noexec,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
 validate "$?"
 
 desc "Security: Kernel Runtime Parameters"
@@ -328,7 +328,7 @@ desc "Modify: Oldschool NIC Names"
 validate "$?"
 
 desc "Config: eth0"
-/usr/sbin/echo -e "[Match]\nName=eth0\n\n[Network]\nAddress=${A_IPADDR}/24\nGateway=${A_GATEWAY}" > /mnt/etc/systemd/network/eth0.network
+echo -e "[Match]\nName=eth0\n\n[Network]\nAddress=${A_IPADDR}/24\nGateway=${A_GATEWAY}" > /mnt/etc/systemd/network/eth0.network
 validate "$?"
 
 desc "Enable Service: systemd-networkd"
@@ -348,15 +348,15 @@ desc "Modify: /etc/pacman.conf"
 validate "$?"
 
 desc "Modify: /etc/hostname"
-/usr/bin/echo -e "${AA_HOSTNAME}" > /mnt/etc/hostname
+echo -e "${AA_HOSTNAME}" > /mnt/etc/hostname
 validate "$?"
 
 desc "Modify: /etc/hosts"
-/usr/bin/echo -e "127.0.0.1\t${AA_HOST}.localdomain\t${AA_HOST}" >> /mnt/etc/hosts
+echo -e "127.0.0.1\t${AA_HOST}.localdomain\t${AA_HOST}" >> /mnt/etc/hosts
 validate "$?"
 
 desc "Modify: /etc/resolv.conf"
-/usr/bin/echo -e "${AA_DNS}" >> /mnt/etc/resolv.conf
+echo -e "${AA_DNS}" >> /mnt/etc/resolv.conf
 validate "$?"
 
 desc "Symlink: /etc/localtime"
@@ -392,7 +392,7 @@ desc "Compile: AUR Helper (pikaur)"
 validate "$?"
 
 desc "Install: AUR Helper (pikaur)"
-T_PIKAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/pikaur/ | /usr/sbin/grep .tar.xz)
+T_PIKAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/pikaur/ | /usr/bin/grep .tar.xz)
 /usr/bin/arch-chroot /mnt pacman -U /home/${AA_USERNAME}/pikaur/${T_PIKAUR} --noconfirm >/dev/null 2>&1
 validate "$?"
 
@@ -405,8 +405,8 @@ desc "Modify: /etc/makepkg.conf"
 validate "$?"
 
 desc "Systemd: TTYVTDisallocate"
-/usr/sbin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d
-/usr/sbin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
+/usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d
+/usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
 [Service]
 TTYVTDisallocate=no
 EOF
@@ -418,7 +418,7 @@ desc "Download: /etc/ssh/sshd_config"
 validate "$?"
 
 desc "Create: ~/.ssh/"
-/usr/sbin/mkdir -p /mnt/home/${AA_USERNAME}/.ssh/
+/usr/bin/mkdir -p /mnt/home/${AA_USERNAME}/.ssh/
 validate "$?"
 
 desc "Download: ~/.ssh/authorized_keys"
@@ -435,15 +435,15 @@ desc "Permissions: ~/.ssh/"
 validate "$?"
 
 desc "Create: /etc/ssh/moduli"
-/usr/sbin/cp -f moduli /mnt/etc/ssh/moduli >/dev/null 2>&1
+/usr/bin/cp -f moduli /mnt/etc/ssh/moduli >/dev/null 2>&1
 validate "$?"
 
 desc "SSH: Host Key (Ed25519)"
-/usr/sbin/ssh-keygen -t ed25519 -f /mnt/etc/ssh/ssh_host_ed25519_key -N "" < /dev/null >/dev/null 2>&1
+/usr/bin/ssh-keygen -t ed25519 -f /mnt/etc/ssh/ssh_host_ed25519_key -N "" < /dev/null >/dev/null 2>&1
 validate "$?"
 
 desc "SSH: Host Key (RSA 4096)"
-/usr/sbin/ssh-keygen -t rsa -b 4096 -f /mnt/etc/ssh/ssh_host_rsa_key -N "" < /dev/null >/dev/null 2>&1
+/usr/bin/ssh-keygen -t rsa -b 4096 -f /mnt/etc/ssh/ssh_host_rsa_key -N "" < /dev/null >/dev/null 2>&1
 validate "$?"
 
 desc "Groupadd: ssh"
@@ -452,7 +452,7 @@ desc "Groupadd: ssh"
 validate "$?"
 
 desc "Modify: /etc/nftables.conf"
-cat > /mnt/etc/nftables.conf << EOF
+/usr/bin/cat > /mnt/etc/nftables.conf << EOF
 #!/usr/bin/nft -f
 # $Arch: nftables.conf,v 1.003 2018/11/12 15:41:23 kyau Exp $
 #
@@ -507,7 +507,7 @@ desc "Systemd: Enable (nftables)"
 validate "$?"
 
 desc "Create: /etc/sudoers.d/kyaulabs"
-cat > /mnt/etc/sudoers.d/kyaulabs << EOF
+/usr/bin/cat > /mnt/etc/sudoers.d/kyaulabs << EOF
 Defaults editor=/usr/bin/rvim
 Defaults env_keep += "SSH_AUTH_SOCK"
 %wheel ALL=(ALL) ALL
