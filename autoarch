@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: autoarch,v 1.023 2018/11/12 16:29:19 kyau Exp $
+# $Arch: autoarch,v 1.024 2018/11/12 16:39:26 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -188,6 +188,7 @@ validate "$?"
 # }}}
 # Prerequisites: LVM {{{
 desc "LVM: Clear Metadata"
+/usr/bin/dmsetup remove_all >/dev/null 2>&1
 /usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
 validate "$?"
 
