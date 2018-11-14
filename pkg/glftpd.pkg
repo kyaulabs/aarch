@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: glftpd.pkg,v 1.019 2018/11/13 17:58:44 kyau Exp $
+# $Arch: glftpd.pkg,v 1.020 2018/11/14 03:50:40 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -50,8 +50,6 @@ glstrings="-s$jaildir$glroot/bin/glstrings.bin"
 euroweek="-e "
 tls="$jaildir$glroot/etc"
 opensslbin=$(type -P openssl)
-base=ftpd-ecdsa
-tlsfull="$tls/$base.pem"
 confpath="-r $jaildir/${sitename}.conf"
 # }}}
 # Install: Download Package {{{
@@ -220,6 +218,8 @@ validate "$?"
 # }}}
 # Install: SSL/TLS Setup {{{
 section "SSL/TLS Setup"
+base=ftpd-ecdsa
+tlsfull="$tls/$base.pem"
 desc "Generate" "ECDSA Key"
 $opensslbin ecparam -out $base.key -name secp384r1 -genkey 2>&1
 validate "$?"
