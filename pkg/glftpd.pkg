@@ -88,8 +88,7 @@ desc "Create" "$jaildir"
 mkdir -m750 -p "$jaildir"
 validate "$?"
 
-grep -q -E "^$sitename:" /etc/group
-if [ $? -eq 0 ]; then
+if [ $(grep -q -E "^$sitename:" /etc/group) ]; then
 	warning "group '${sitename}' already exists"
 else
 	desc "Groupadd" "$sitename"
