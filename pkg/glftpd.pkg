@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: glftpd.pkg,v 1.020 2018/11/14 03:50:40 kyau Exp $
+# $Arch: glftpd.pkg,v 1.021 2018/11/14 13:45:27 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -41,16 +41,14 @@ jaildir="/jail"
 glroot="/glftpd"
 # }}}
 # Variables: Load {{{
-BINS=(sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip zip ldconfig)
+BINS=(sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip zip ldconfig echo)
 ipckey=0xBADC0FEE
 confsource="$jaildir$glroot/bin/sources/glconf.h"
 usegcc=$(type -P gcc)
 gccflags="-O2 -Wall -o"
 glstrings="-s$jaildir$glroot/bin/glstrings.bin"
-euroweek="-e "
-tls="$jaildir$glroot/etc"
 opensslbin=$(type -P openssl)
-confpath="-r $jaildir/${sitename}.conf"
+base=ftpd-ecdsa
 # }}}
 # Install: Download Package {{{
 if [ "$EUID" -ne 0 ]
@@ -59,8 +57,12 @@ if [ "$EUID" -ne 0 ]
 fi
 cd /tmp
 section "Download"
-desc "Install" "cronie curl lib32-glibc openssl tcl unzip zip"
-pacman -S cronie curl lib32-glibc openssl tcl unzip zip --noconfirm >/dev/null 2>&1
+desc "Install" "cronie curl lib32-glibc openssl tcl unrar unzip zip"
+pacman -S cronie curl lib32-glibc openssl tcl unrar unzip zip --noconfirm >/dev/null 2>&1
+validate "$?"
+
+desc "Install" "rar"
+pikaur -S rar --noconfirm >/dev/null 2>&1
 validate "$?"
 
 desc "Download" "$PACKAGE"
@@ -153,10 +155,10 @@ echo "#define GLCONF  \"$jaildir/${sitename}.conf\"" >${confsource}.tmp && grep 
 validate "$?"
 
 for cfile in $jaildir$glroot/bin/sources/*.c; do
-	base="$(basename "${cfile%.c}")"
-	[ -f "$jaildir$glroot/bin/$base" ] && rm -f "$jaildir$glroot/bin/$base"
-	desc "Compile" "$jaildir$glroot/bin/$base"
-	$usegcc $gccflags "$jaildir$glroot/bin/$base" "$cfile" >/dev/null 2>&1 || $usegcc -o "$jaildir$glroot/bin/$base" "$cfile"
+	bfile="$(basename "${cfile%.c}")"
+	[ -f "$jaildir$glroot/bin/$bfile" ] && rm -f "$jaildir$glroot/bin/$bfile"
+	desc "Compile" "$jaildir$glroot/bin/$bfile"
+	$usegcc $gccflags "$jaildir$glroot/bin/$bfile" "$cfile" >/dev/null 2>&1 || $usegcc -o "$jaildir$glroot/bin/$bfile" "$cfile"
 	validate "$?"
 done
 
@@ -218,8 +220,6 @@ validate "$?"
 # }}}
 # Install: SSL/TLS Setup {{{
 section "SSL/TLS Setup"
-base=ftpd-ecdsa
-tlsfull="$tls/$base.pem"
 desc "Generate" "ECDSA Key"
 $opensslbin ecparam -out $base.key -name secp384r1 -genkey 2>&1
 validate "$?"
@@ -243,12 +243,12 @@ cat $base.key > $base.pem && cat $base.crt >> $base.pem && rm -f $base.key $base
 validate "$?"
 
 desc "Permissions" "TLS Certificate"
-chmod 600 $base.pem && mv -f $base.pem $tls/
+chmod 600 $base.pem && mv -f $base.pem $jaildir/
 validate "$?"
 
 if [ `cat $jaildir/${sitename}.conf | grep "CERT_FILE /glftpd/ftpd-ecdsa.pem" | wc -l` -ne 0 ]; then
 	desc "Add" "TLS Certificate => $jaildir/${sitename}.conf"
-	cat $jaildir/${sitename}.conf | sed "s|CERT_FILE /glftpd/ftpd-ecdsa.pem|CERT_FILE $tls/$base.pem|" >$jaildir/${sitename}.conf.tmp && mv $jaildir/${sitename}.conf.tmp $jaildir/${sitename}.conf
+	cat $jaildir/${sitename}.conf | sed "s|CERT_FILE /glftpd/ftpd-ecdsa.pem|CERT_FILE $jaildir/$base.pem|" >$jaildir/${sitename}.conf.tmp && mv $jaildir/${sitename}.conf.tmp $jaildir/${sitename}.conf
 	validate "$?"
 fi
 # }}}
@@ -267,7 +267,7 @@ else
 [Unit]
 Description=$sitename per connection server
 [Service]
-ExecStart=-$jaildir$glroot/bin/glftpd -l -i -o $confpath $glstrings $euroweek
+ExecStart=-$jaildir$glroot/bin/glftpd -l -i -o -r $jaildir/${sitename}.conf $glstrings -e
 StandardInput=socket
 SyslogFacility=ftp
 EOF
@@ -313,7 +313,7 @@ chown -R root:$sitename $jaildir && chmod -R g=u $jaildir
 validate "$?"
 # }}}
 echo -e
-fmsg "CRONTAB: 0  0 * * *      $jaildir$glroot/bin/reset ${euroweek}${confpath}"
+fmsg "CRONTAB: 0  0 * * *      $jaildir$glroot/bin/reset -e -r $jaildir/${sitename}.conf"
 fmsg "Site Config: \\x1b[38;5;6m$jaildir/${sitename}.conf"
 echo -e
 cd && rm -rf /tmp/${PACKAGE_FILE::-4}

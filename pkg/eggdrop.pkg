@@ -1,0 +1,106 @@
+#!/bin/bash
+
+# $Arch: eggdrop.pkg,v 1.000 2018/11/14 14:25:48 kyau Exp $
+
+set -eu
+IFS=$'\n\t'
+
+# ANSI Output {{{
+function section() {
+    printf "\\x1b[38;5;82m\\u039e\\x1b[0m %s \\x1b[38;5;82m\\u039e\\x1b[0m\\n" "$1"
+}
+function desc() {
+	>&2 printf "\\x1b[38;5;32m\\u25ab\\u25aa \\x1b[38;5;250m%s: \\x1b[38;5;245m%s\\x1b[0m " "$1" "$2"
+}
+function validate() {
+	# if failure else success
+	if [[ "$1" -ne 0 ]]; then
+		>&2 printf "\\x1b[38;5;160m\\u203c\\x1b[0m\\n"
+		exit 1
+	else
+		>&2 printf "\\x1b[1;32m\\u2713\\x1b[0m\\n"
+	fi
+}
+function warning() {
+	printf "\\x1b[38;5;226m\\u203c\\x1b[0m %s\\n" "$1"
+}
+function fmsg() {
+	printf "   \\x1b[38;5;160m\\u00bb\\x1b[0m %s \\x1b[38;5;160m\\u00ab\\x1b[0m\\n" "$1"
+}
+# }}}
+# Package Details {{{
+PACKAGE=eggdrop
+PACKAGE_URL=ftp://ftp.eggheads.org/pub/eggdrop/source/
+PACKAGE_FILE=eggdrop1.8-latest.tar.gz
+# }}}
+# Package Settings (EDIT HERE!) {{{
+sitename="akira"
+port=1337
+privusers="kyau"		# Syntax: user1,user2,...
+jaildir="/jail"
+glroot="/glftpd"
+# }}}
+# Variables: Load {{{
+BINS=(sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip zip ldconfig echo)
+ipckey=0xBADC0FEE
+confsource="$jaildir$glroot/bin/sources/glconf.h"
+usegcc=$(type -P gcc)
+gccflags="-O2 -Wall -o"
+glstrings="-s$jaildir$glroot/bin/glstrings.bin"
+opensslbin=$(type -P openssl)
+base=ftpd-ecdsa
+# }}}
+# Install: Download Package {{{
+if [ "$EUID" -eq 0 ]
+  then echo "Please DO NOT run as root"
+  exit
+fi
+cd /tmp
+section "Download"
+desc "Install" "oidentd tcl"
+pacman -S oidentd tcl --noconfirm >/dev/null 2>&1
+validate "$?"
+
+desc "Download" "$PACKAGE"
+curl -O $PACKAGE_URL$PACKAGE_FILE >/dev/null 2>&1
+validate "$?"
+
+desc "Extract" "$PACKAGE"
+tar xf $PACKAGE_FILE; rm $PACKAGE_FILE >/dev/null 2>&1
+validate "$?"
+
+#cd ${PACKAGE_FILE::-7}
+cd $(/bin/ls | grep 'eggdrop-*')
+desc "Configure" "$PACKAGE"
+./configure --enable-tls --disable-ipv6 >/dev/null 2>&1
+validate "$?"
+
+desc "Configure"  "Modules"
+make config >/dev/null 2>&1
+validate "$?"
+
+desc "Compile" "$PACKAGE"
+make >/dev/null 2>&1
+validate "$?"
+
+desc "Install" "$PACKAGE"
+make install DEST=~/eggdrop >/dev/null 2>&1
+validate "$?"
+
+desc "Generate" "SSL Cert"
+make sslcert DEST=~/eggdrop >/dev/null 2>&1 << EOF
+.
+.
+.
+.
+.
+$domainname
+.
+$botnick
+EOF
+validate "$?"
+
+
+# }}}
+
+# vim: ft=sh ts=4 sw=4 noet:
