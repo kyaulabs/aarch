@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: eggdrop.pkg,v 1.000 2018/11/14 14:25:48 kyau Exp $
+# $Arch: eggdrop.pkg,v 1.005 2018/11/27 23:21:57 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -32,23 +32,45 @@ function fmsg() {
 PACKAGE=eggdrop
 PACKAGE_URL=ftp://ftp.eggheads.org/pub/eggdrop/source/
 PACKAGE_FILE=eggdrop1.8-latest.tar.gz
-# }}}
-# Package Settings (EDIT HERE!) {{{
-sitename="akira"
-port=1337
-privusers="kyau"		# Syntax: user1,user2,...
-jaildir="/jail"
-glroot="/glftpd"
+username=$(whoami)
 # }}}
 # Variables: Load {{{
-BINS=(sh cat grep egrep unzip wc find ls bash mkdir rmdir rm mv cp awk ln basename dirname head tail cut tr wc sed date sleep touch gzip zip ldconfig echo)
-ipckey=0xBADC0FEE
-confsource="$jaildir$glroot/bin/sources/glconf.h"
-usegcc=$(type -P gcc)
-gccflags="-O2 -Wall -o"
-glstrings="-s$jaildir$glroot/bin/glstrings.bin"
-opensslbin=$(type -P openssl)
-base=ftpd-ecdsa
+if [ -z ${botname+x} ]; then
+	printf "Bot name [darkmage]: "
+	read botname
+	if [ -z "$botname" ]; then
+		botname="darkmage"
+	fi
+fi
+if [ -z ${botnet+x} ]; then
+	printf "Bot network [RaptrNET]: "
+	read botnet
+	if [ -z "$botnet" ]; then
+		botnet="RaptrNET"
+	fi
+fi
+if [ -z ${admin+x} ]; then
+	printf "Owner [kyau]: "
+	read admin
+	if [ -z "$admin" ]; then
+		admin="kyau"
+	fi
+fi
+if [ -z ${vhost+x} ]; then
+	printf "Virtual host [virtual.host]: "
+	read vhost
+	if [ -z "$vhost" ]; then
+		vhost="virtual.host"
+	fi
+fi
+if [ -z ${ipaddr+x} ]; then
+	printf "IP Address [1.2.3.4]: "
+	read ipaddr
+	if [ -z "$ipaddr" ]; then
+		ipaddr="1.2.3.4"
+	fi
+fi
+
 # }}}
 # Install: Download Package {{{
 if [ "$EUID" -eq 0 ]
@@ -57,8 +79,8 @@ if [ "$EUID" -eq 0 ]
 fi
 cd /tmp
 section "Download"
-desc "Install" "oidentd tcl"
-pacman -S oidentd tcl --noconfirm >/dev/null 2>&1
+desc "Install" "nullidentdmod tcl"
+pikaur -S nullidentdmod tcl --noconfirm >/dev/null 2>&1
 validate "$?"
 
 desc "Download" "$PACKAGE"
@@ -72,7 +94,7 @@ validate "$?"
 #cd ${PACKAGE_FILE::-7}
 cd $(/bin/ls | grep 'eggdrop-*')
 desc "Configure" "$PACKAGE"
-./configure --enable-tls --disable-ipv6 >/dev/null 2>&1
+./configure --enable-tls >/dev/null 2>&1
 validate "$?"
 
 desc "Configure"  "Modules"
@@ -84,23 +106,86 @@ make >/dev/null 2>&1
 validate "$?"
 
 desc "Install" "$PACKAGE"
-make install DEST=~/eggdrop >/dev/null 2>&1
+make install DEST=~/${botname} >/dev/null 2>&1
 validate "$?"
 
 desc "Generate" "SSL Cert"
-make sslcert DEST=~/eggdrop >/dev/null 2>&1 << EOF
+make sslcert DEST=~/${botname} >/dev/null 2>&1 << EOF
 .
 .
 .
 .
 .
-$domainname
+$vhost
 .
-$botnick
+$botname
 EOF
 validate "$?"
 
+desc "Rename" "SSL Cert"
+mv /home/${username}/${botname}/eggdrop.crt /home/${username}/${botname}/${botname}.crt
+validate "$?"
 
+desc "Rename" "SSL Key"
+mv /home/${username}/${botname}/eggdrop.key /home/${username}/${botname}/${botname}.key
+validate "$?"
+
+desc "Download" "Default Config"
+wget -O /home/${username}/${botname}/${botname}.conf https://raw.githubusercontent.com/kyau/darkmage/master/darkmage.conf.default > /dev/null 2>&1
+validate "$?"
+
+desc "Config" "Setting Bot Name"
+sed -i "s/REPLACEME/${botname}/" /home/${username}/${botname}/${botname}.conf
+validate "$?"
+
+desc "Config" "Setting Bot Network"
+sed -i "s/MYNETWORK/${botnet}/" /home/${username}/${botname}/${botname}.conf
+validate "$?"
+
+desc "Config" "Setting Bot Admin"
+sed -i "s/OWNERNAME/${admin}/" /home/${username}/${botname}/${botname}.conf
+validate "$?"
+
+desc "Config" "Setting Bot IP Address"
+sed -i "s/1.2.3.4/${ipaddr}/" /home/${username}/${botname}/${botname}.conf
+validate "$?"
+
+desc "Download" "darkMAGE"
+wget -O /home/${username}/${botname}/scripts/darkmage.tcl https://raw.githubusercontent.com/kyau/darkmage/master/darkmage.tcl > /dev/null 2>&1
+validate "$?"
+
+desc "Download" "text/banner"
+wget -O /home/${username}/${botname}/text/banner https://raw.githubusercontent.com/kyau/darkmage/master/text/banner > /dev/null 2>&1
+validate "$?"
+
+desc "Download" "text/motd"
+wget -O /home/${username}/${botname}/text/motd https://raw.githubusercontent.com/kyau/darkmage/master/text/motd > /dev/null 2>&1
+validate "$?"
+
+desc "Cleanup" "eggdrop"
+rm -rf /home/${username}/${botname}/eggdrop-basic.conf /home/${username}/${botname}/eggdrop.conf /home/${username}/${botname}/README /home/${username}/${botname}/doc/
+validate "$?"
+
+desc "Fixing" "identd"
+sudo sed -i "s/nullidentdmod$/nullidentdmod ${username}/" /usr/lib/systemd/system/nullidentdmod@.service
+validate "$?"
+
+desc "Systemd" "Enabling: nullidentdmod.socket"
+sudo systemctl enable nullidentdmod.socket > /dev/null 2>&1
+validate "$?"
+
+desc "Systemd" "Starting: nullidentdmod.socket"
+sudo systemctl start nullidentdmod.socket
+validate "$?"
+
+echo " "
+echo "Bot installed: \x1b[1m~/${botname}\x1b[0m"
+echo " "
+echo "Add the following to '/etc/nftables.conf'"
+echo "\n\t# allow identd and ssh, but with brute force protection"
+echo "\ttcp dport {auth,ssh} limit rate 15/minute accept"
+echo "\t# allow botnet traffic"
+echo "\ttcp dport {9900,9901,5000-5050} accept"
 # }}}
 
 # vim: ft=sh ts=4 sw=4 noet:
