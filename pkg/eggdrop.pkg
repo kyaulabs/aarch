@@ -179,13 +179,13 @@ sudo systemctl start nullidentdmod.socket
 validate "$?"
 
 echo " "
-echo "Bot installed: \x1b[1m~/${botname}\x1b[0m"
+echo -e "Bot installed: \x1b[1m~/${botname}\x1b[0m"
 echo " "
 echo "Add the following to '/etc/nftables.conf'"
-echo "\n\t# allow identd and ssh, but with brute force protection"
-echo "\ttcp dport {auth,ssh} limit rate 15/minute accept"
-echo "\t# allow botnet traffic"
-echo "\ttcp dport {9900,9901,5000-5050} accept"
+echo -e "\n\t# allow identd and ssh, but with brute force protection"
+echo -e "\ttcp dport {auth,ssh} limit rate 15/minute accept"
+echo -e "\t# allow botnet traffic"
+echo -e "\ttcp dport {9900-9901,5000-5050} accept"
 # }}}
 
 # vim: ft=sh ts=4 sw=4 noet:
