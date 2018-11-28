@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: eggdrop.pkg,v 1.005 2018/11/27 23:21:57 kyau Exp $
+# $Arch: eggdrop.pkg,v 1.006 2018/11/28 10:17:20 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -146,6 +146,10 @@ desc "Config" "Setting Bot Admin"
 sed -i "s/OWNERNAME/${admin}/" /home/${username}/${botname}/${botname}.conf
 validate "$?"
 
+desc "Config" "Setting Bot Username"
+sed -i "s/USERNAME/${username}" /home/${username}/${botname}/${botname}.conf
+validate "$?"
+
 desc "Config" "Setting Bot IP Address"
 sed -i "s/1.2.3.4/${ipaddr}/" /home/${username}/${botname}/${botname}.conf
 validate "$?"
@@ -164,6 +168,14 @@ validate "$?"
 
 desc "Cleanup" "eggdrop"
 rm -rf /home/${username}/${botname}/eggdrop-basic.conf /home/${username}/${botname}/eggdrop.conf /home/${username}/${botname}/README /home/${username}/${botname}/doc/
+validate "$?"
+
+desc "Cleanup" "Scripts: dccwhois.tcl"
+sed -i 's/putlog "Load/#putlog "Load/' /home/${username}/${botname}/scripts/dccwhois.tcl
+validate "$?"
+
+desc "Cleanup" "Scripts: userinfo.tcl"
+tac /home/${username}/${botname}/scripts/userinfo.tcl | sed "1,2{d}" | tac > /home/${username}/${botname}/scripts/userinfo.tcl
 validate "$?"
 
 desc "Fixing" "identd"
