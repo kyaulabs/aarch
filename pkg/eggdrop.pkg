@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: eggdrop.pkg,v 1.006 2018/11/28 10:17:20 kyau Exp $
+# $Arch: eggdrop.pkg,v 1.007 2018/11/29 07:09:30 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -80,7 +80,7 @@ fi
 cd /tmp
 section "Download"
 desc "Install" "nullidentdmod tcl"
-pikaur -S nullidentdmod tcl --noconfirm >/dev/null 2>&1
+pikaur -S nullidentdmod tcl tcllib tcltls --noconfirm >/dev/null 2>&1
 validate "$?"
 
 desc "Download" "$PACKAGE"
