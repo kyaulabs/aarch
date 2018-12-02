@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $Arch: eggdrop.pkg,v 1.007 2018/11/29 07:09:30 kyau Exp $
+# $Arch: eggdrop.pkg,v 1.008 2018/12/01 23:57:49 kyau Exp $
 
 set -eu
 IFS=$'\n\t'
@@ -147,7 +147,7 @@ sed -i "s/OWNERNAME/${admin}/" /home/${username}/${botname}/${botname}.conf
 validate "$?"
 
 desc "Config" "Setting Bot Username"
-sed -i "s/USERNAME/${username}" /home/${username}/${botname}/${botname}.conf
+sed -i "s/USERNAME/${username}/" /home/${username}/${botname}/${botname}.conf
 validate "$?"
 
 desc "Config" "Setting Bot IP Address"
