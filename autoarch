@@ -315,12 +315,24 @@ menuentry "Arch Linux" {
 EOF
 validate "$?"
 
-desc "Permissions: /tmp"
-echo -e "tmpfs\t/tmp\ttmpfs\trw,nosuid,nodev,noatime,mode=1777\t0\t0" >> /mnt/etc/fstab 
+desc "Secure: /boot"
+/usr/bin/sed -i 's/rw,relatime,fmask/ro,noatime,nodev,noexec,nosuid,fmask/' /mnt/etc/fstab
 validate "$?"
 
-desc "Permissions: /proc"
-echo -e "proc\t/proc\tproc\tnosuid,nodev,noexec,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
+desc "Secure: /dev/shm"
+echo -e "tmpfs\t/dev/shm\ttmpfs\trw,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Secure: /tmp"
+echo -e "tmpfs\t/tmp\ttmpfs\trw,noatime,nodev,nosuid,mode=1777\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Secure: /var/tmp"
+echo -e "/tmp\t/var/tmp\tnone\trw,noatime,nodev,noexec,nosuid,bind\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Secure: /proc"
+echo -e "proc\t/proc\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
 validate "$?"
 
 desc "Security: Kernel Runtime Parameters"
@@ -479,6 +491,11 @@ desc "Groupadd: ssh"
 /usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} ssh >/dev/null 2>&1
 validate "$?"
 
+desc "Groupadd: shm"
+/usr/bin/arch-chroot /mnt groupadd shm
+/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} shm >/dev/null 2>&1
+validate "$?"
+
 desc "Modify: /etc/nftables.conf"
 /usr/bin/cat > /mnt/etc/nftables.conf << EOF
 #!/usr/bin/nft -f
@@ -526,6 +543,8 @@ table inet filter {
   }
 
 }
+
+# vim: ft=conf sw=2 ts=2 et:
 EOF
 validate "$?"
 
