@@ -1,18 +1,55 @@
-# Example automated script
-AA_DISK="/dev/sda"
-AA_HOSTNAME="akira.wa.kyaulabs.com"
-AA_SWAP="4"
-AA_USERNAME="kyau"
-AA_PASSWD="moomoo"
-#AA_WIFI_SSID="SSID"
-#AA_WIFI_PASSWD="moo"
-AA_IPADDR="10.0.42.36"
-AA_GATEWAY="10.0.42.1"
-AA_DNS="1.1.1.1"
-AA_TIMEZONE="America/Los_Angeles"
-AA_SSHD_CONFIG="https://gitlab.com/kyaulabs/autoarch/raw/master/etc/sshd_config"
-AA_SSH_CONFIG="https://gitlab.com/kyaulabs/autoarch/raw/master/etc/ssh_config"
+# $KYAULabs: example.aa,v 2.014 2019/07/28 15:43:25 kyau Exp $
+# ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
+# █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
+# ■ ██▄▀ ██▄█ ██▄█ ██ █ ▀▀ ██   ██▄█ ██▄▀ ▀██▄ ■
+# █ ██ █ ▄▄ █ ██ █ ██ █    ██▄▄ ██ █ ██ █  ▄██ █
+# ▄ ▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    ▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  █
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
+#
+# Automated Arch Linux (KYAU Labs Edition)
+# Copyright (C) 2019 KYAU Labs (https://kyaulabs.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+# If these settings are modified and the file is also included with the main
+# autoarch script when run
+
+AA_MACHINEROLE="vm"				# Machine Role [desktop/laptop/server/vm]
+AA_ENCRYPT=0					# Full Disk Encrypt [0=False/1=True]
+AA_UCODE="intel"				# CPU microcode [amd/intel]
+AA_XORG=0						# Xorg	[0=False/1=QXL]				(vm)
+								#		[0=False/1=Intel/2=NVIDIA]	(*)
+AA_DISK="/dev/sda"				# Disk Device Node for Installation Target
+AA_HOSTNAME="arch.local"		# System Hostname
+AA_TZ="America/Los_Angeles"		# System Timezone
+AA_SWAP="4"						# Disk Space (GB) for Dedicated Swap
+AA_USERNAME="kyau"				# Default Username
+AA_PASSWD="moo"					# Default Password (user/root/luks)
+AA_WIFI_SSID=""					# WiFi SSID (Disabled if Blank)
+AA_WIFI_PASSWD=""				# WiFi Password
+AA_IPADDR="10.0.42.36"			# Static IP for eth0 (DHCP if Blank)
+AA_GATEWAY="10.0.42.1"			# Gateway for eth0 (Ignored if IPADDR is Blank)
+AA_DNS="10.0.42.42"				# DNS (cloudflare, google, neustar, opendns, or 
+								# a custom ip)
+AA_DOMAINS=("wa.kyaulabs.com" "kyaulabs.com")	# DNS Search Domains (Ignored if Blank)
+
+# User Public Key
 AA_SSH_KEY="https://raw.githubusercontent.com/kyau/dotfiles/master/ssh/authorized_keys"
-AA_TFAN_CONFIG="https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/thinkfan.conf"
-AA_TLP_CONFIG="https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/default/tlp"
+# Thinkfan Config (Thinkfan skipped if Blank)
+AA_TFAN_CONFIG=""	# "https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/thinkfan.conf"
+# TLP Config (TLP skipped if Blank)
+AA_TLP_CONFIG=""	# "https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/default/tlp"
+
 # vim: ft=sh ts=4 sw=4 noet:

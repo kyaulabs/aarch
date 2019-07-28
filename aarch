@@ -1,0 +1,966 @@
+#!/bin/bash
+
+# $KYAULabs: aarch,v 2.029 2019/07/28 15:38:20 kyau Exp $
+# ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
+# █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
+# ■ ██▄▀ ██▄█ ██▄█ ██ █ ▀▀ ██   ██▄█ ██▄▀ ▀██▄ ■
+# █ ██ █ ▄▄ █ ██ █ ██ █    ██▄▄ ██ █ ██ █  ▄██ █
+# ▄ ▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    ▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  █
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
+#
+# Automated Arch Linux (KYAU Labs Edition)
+# Copyright (C) 2019 KYAU Labs (https://kyaulabs.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+set -eu
+IFS=$'\n\t'
+
+# Default Functions {{{
+function print_logo() {
+	printf "  [0;1;30m▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄[0m▄▄▄[1m▄▄\\n"
+	printf "  [30m█ [36m▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    [37m▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ [47m▀[40m\\n"
+	printf "  [30m█ [36m██ █ ██ █ ██ █ ██ █    [37m██   ██ █ ██ █ ██▀  [30m█\\n"
+	printf "  ■ [36m██▄▀ ██▄█ ██▄█ ██ █ [31;41m▀▀[1C[37;40m██   ██▄█ ██▄▀ ▀██▄ [30m■\\n"
+	printf "  █ [46m [36;40m█ █ [0;36m▄[1m▄ █ [46m [40m█ █ [46m [40m█ █    [47m [37m█[40m▄▄ [47m [40m█ █ [47m [40m█ █  [0m▄[1m██ [30m█\\n"
+	printf "  [37;47m▄[1C[0;36m▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    [37m▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  [1;30m█\\n"
+	printf "  [37m▀▀[0m▀▀▀[1;30m▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀[0m\\n\\n"
+	printf "  Automated \e[1;37mArch \e[0;36mLinux\\n"
+	printf "  \e[0;38;5;8m- KYAU Labs Edition\\n\\n"
+}
+function desc() {
+	>&2 printf "\\x1b[38;5;6m\\u25ab\\u25aa \\x1b[38;5;252m%s\\x1b[0m " "${1}"
+}
+function validate() {
+	# if failure else success
+	if [[ "$1" -ne 0 ]]; then
+		>&2 printf "\\x1b[31m\\u203c\\x1b[0m\\n"
+		exit 1
+	else
+		>&2 printf "\\x1b[1;32m\\u2713\\x1b[0m\\n"
+	fi
+}
+# }}}
+# MODULI Verification {{{
+if [ ! -f moduli ]; then
+	print_logo
+	printf "  \\x1b[38;5;124m‼ Missing non elliptic-curve primes (moduli)\\n\\n\\x1b[0m  Run the following command to generate:\\n"
+	printf "  \\x1b[38;5;235m#\\x1b[38;5;244m ssh-keygen -G mtmp -b 2048 && ssh-keygen -T moduli -f mtmp && rm mtmp\\n\\n"
+	exit 1
+fi
+# }}}
+# Variables: Load/Prompt {{{
+# Load Machine Template
+for file in *.aa; do
+	if [ -f "$file" ]; then
+		# shellcheck source=example.aa
+		source "$file"
+		break
+	fi
+done
+# Machine Role
+if [ -z ${AA_MACHINEROLE+x} ]; then
+	printf "Machine Role (dekstop/laptop/server/vm) [default: vm]: "
+	read -r AA_MACHINEROLE
+	if [ -z "$AA_MACHINEROLE" ]; then
+		AA_MACHINEROLE="vm"
+	fi
+fi
+# Full Disk Encryption
+if [ -z ${AA_ENCRYPT+x} ]; then
+	printf "Full Disk Encryption (0/1) [default: 0]: "
+	read -r AA_ENCRYPT
+	if [ -z "$AA_ENCRYPT" ]; then
+		AA_ENCRYPT=0
+	fi
+fi
+# Xorg
+if [ -z ${AA_XORG+x} ]; then
+	printf "Xorg (0/1) [default: 0]: "
+	read -r AA_XORG
+	if [ -z "$AA_XORG" ]; then
+		AA_XORG=0
+	fi
+fi
+# Installation Disk
+if [ -z ${AA_DISK+x} ]; then
+	printf "Disk to use for install [default: /dev/sda]: "
+	read -r AA_DISK
+	if [ -z "$AA_DISK" ]; then
+		AA_DISK="/dev/sda"
+	fi
+fi
+# Hostname
+if [ -z ${AA_HOSTNAME+x} ]; then
+	printf "Hostname [default: arch.local]: "
+	read -r AA_HOSTNAME
+	if [ -z "$AA_HOSTNAME" ]; then
+		AA_HOSTNAME="arch.local"
+	fi
+	AA_HOST=${AA_HOSTNAME%%.*}
+else
+	AA_HOST=${AA_HOSTNAME%%.*}
+fi
+# Swap
+if [ -z ${AA_SWAP+x} ]; then
+	printf "Swap Size (in GB) [default: 4]: "
+	read -r AA_SWAP
+	if [ -z "$AA_SWAP" ]; then
+		AA_SWAP="4"
+	fi
+fi
+# Root Password
+if [ -z ${AA_PASSWD+x} ]; then
+	printf "Root/User password [default: moo]: "
+	read -r AA_PASSWD
+	if [ -z "$AA_PASSWD" ]; then
+		AA_PASSWD="moo"
+	fi
+fi
+# Username
+if [ -z ${AA_USERNAME+x} ]; then
+	printf "Username [default: kyau]: "
+	read -r AA_USERNAME
+	if [ -z "$AA_USERNAME" ]; then
+		AA_USERNAME="kyau"
+	fi
+fi
+# SSID
+if [ -z ${AA_WIFI_SSID+x} ]; then
+	printf "WiFi SSID [default: SSID]: "
+	read -r AA_WIFI_SSID
+	if [ -z "$AA_WIFI_SSID" ]; then
+		AA_WIFI_SSID="SSID"
+	fi
+fi
+# WiFi Password
+if [ -z ${AA_WIFI_PASSWD+x} ]; then
+	printf "WiFi password [default: moo]: "
+	read -r AA_WIFI_PASSWD
+	if [ -z "$AA_WIFI_PASSWD" ]; then
+		AA_WIFI_PASSWD="moo"
+	fi
+fi
+# IP Address
+if [ -z ${AA_IPADDR+x} ]; then
+	printf "IP Address [default: 10.0.42.40]: "
+	read -r AA_IPADDR
+	if [ -z "$AA_IPADDR" ]; then
+		AA_IPADDR="10.0.42.40"
+	fi
+fi
+# Gateway
+if [ -z ${AA_GATEWAY+x} ]; then
+	printf "Gateway [default: 10.0.42.1]: "
+	read -r AA_GATEWAY
+	if [ -z "$AA_GATEWAY" ]; then
+		AA_GATEWAY="10.0.42.1"
+	fi
+fi
+# DNS
+if [ -z ${AA_DNS+x} ]; then
+	printf "DNS [default: 1.1.1.1]: "
+	read -r AA_DNS
+	if [ -z "$AA_DNS" ]; then
+		AA_DNS="1.1.1.1"
+	fi
+fi
+# Timezone
+if [ -z ${AA_TZ+x} ]; then
+	printf "Timezone [default: America/Los_Angeles]: "
+	read -r AA_TZ
+	if [ -z "$AA_TZ" ]; then
+		AA_TZ="America/Los_Angeles"
+	fi
+fi
+# SSH Key
+if [ -z ${AA_SSH_KEY+x} ]; then
+	printf "SSH Key [default: https://raw.githubusercontent.com/kyau/dotfiles/master/ssh/authorized_keys]: "
+	read -r AA_SSH_KEY
+	if [ -z "$AA_SSH_KEY" ]; then
+		AA_SSH_KEY="https://raw.githubusercontent.com/kyau/dotfiles/master/ssh/authorized_keys"
+	fi
+fi
+# Thinkfan Config
+if [ -z ${AA_TFAN_CONFIG+x} ]; then
+	printf "Thinkfan Config [default: https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/thinkfan.conf]: "
+	read -r AA_TFAN_CONFIG
+	if [ -z "$AA_TFAN_CONFIG" ]; then
+		AA_TFAN_CONFIG="https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/thinkfan.conf"
+	fi
+fi
+# TLP Config
+if [ -z ${AA_TLP_CONFIG+x} ]; then
+	printf "TLP Config [default: https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/default/tlp]: "
+	read -r AA_TLP_CONFIG
+	if [ -z "$AA_TLP_CONFIG" ]; then
+		AA_TLP_CONFIG="https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/default/tlp"
+	fi
+fi
+# Set Hidden Variables
+if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	AA_UCODE=""
+fi
+# }}}
+# Variables: Summary {{{
+print_logo
+p_sshkey=${AA_SSH_KEY##*/}
+s_passwd=""
+if [ -n "${AA_WIFI_PASSWD}" ]; then
+	s_passwd=$(head -c ${#AA_WIFI_PASSWD} < /dev/zero | tr '\0' '*')
+fi
+p_passwd=$(head -c ${#AA_PASSWD} < /dev/zero | tr '\0' '*')
+if [ -n "${AA_TLP_CONFIG}" ]; then
+	p_tlp=${AA_TLP_CONFIG##*/}
+fi
+if [ -n "${AA_TFAN_CONFIG}" ]; then
+	p_tfan=${AA_TFAN_CONFIG##*/}
+fi
+printf " \\x1b[38;5;255m┌\\x1b[38;5;242m────\\x1b[38;5;235m─·\\x1b[38;5;242m─\x1b[38;5;235m─·─────────────────────────────────────────────────┐\\n"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDisk: \\x1b[38;5;240m%-10s  \\x1b[38;5;244mSwap: \\x1b[38;5;240m%-2sGB %-21s \\x1b[38;5;237m░░░·\\x1b[0m\\n" "${AA_DISK}" "${AA_SWAP}" " "
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mHost: \\x1b[38;5;240m%-10s  \\x1b[38;5;244mHostname: \\x1b[38;5;240m%-24s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${AA_HOST}" "${AA_HOSTNAME}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mUsername: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_USERNAME}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_passwd}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mMachine Role: \\x1b[38;5;240m%-38s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_MACHINEROLE^^}"
+if [ -n "${AA_WIFI_SSID}" ]; then
+	printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mWiFi SSID: \\x1b[38;5;240m%-16s \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-14s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_WIFI_SSID}" "${s_passwd}"
+fi
+if [ -n "${AA_IPADDR}" ]; then
+	printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mIP Address: \\x1b[38;5;240m%-15s \\x1b[38;5;244mGateway: \\x1b[38;5;240m%-15s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_IPADDR}" "${AA_GATEWAY}"
+else
+	printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mIP Address: \\x1b[38;5;240m%-15s \\x1b[38;5;244mGateway: \\x1b[38;5;240m%-15s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "DHCP" "auto"
+fi
+TXT_DNS="auto"
+if [ -n "${AA_DNS}" ]; then
+	TXT_DNS=${AA_DNS}
+fi
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDNS: \\x1b[38;5;240m%-47s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${TXT_DNS}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mTimezone: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_TZ}"
+if [ -n "${AA_TFAN_CONFIG}" ]; then
+	printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mThinkfan Config: \\x1b[38;5;240m%-35s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_tfan}"
+fi
+if [ -n "${AA_TLP_CONFIG}" ]; then
+	printf " \\x1b[38;5;235m·\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mTLP Config: \\x1b[38;5;240m%-40s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_tlp}"
+fi
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░░░ \\x1b[38;5;244mSSH Key: \\x1b[38;5;240m%-43s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_sshkey}"
+printf " \\x1b[38;5;235m└─────────────────────────────────────────────·─\\x1b[38;5;242m─\\x1b[1;39m·─\\x1b[38;5;242m─\\x1b[1;39m─\\x1b[38;5;242m──────\\x1b[38;5;255m┘\\x1b[0m\\n"
+# }}}
+# Prereq: Internet Status {{{
+echo -e
+desc "Internet Status"
+/usr/bin/wget -q --tries=10 --timeout=20 --spider http://www.archlinux.org >/dev/null 2>&1
+validate "$?"
+# }}}
+# Prereq: Disk Partition {{{
+if /usr/bin/mount | /usr/bin/grep /mnt > /dev/null; then
+	desc "${AA_DISK}: Unmount All"
+	/usr/bin/umount -R /mnt >/dev/null 2>&1
+	validate "$?"
+fi
+
+desc "${AA_DISK}: Erase (block-level wipe)"
+/usr/bin/dd if=/dev/zero of=${AA_DISK} bs=1k count=2048 >/dev/null 2>&1
+validate "$?"
+
+desc "${AA_DISK}: Erase (filesystem signature)"
+/usr/bin/wipefs -af "${AA_DISK}" >/dev/null 2>&1
+validate "$?"
+
+desc "${AA_DISK}: Erase (MBR/GPT data structs)"
+/usr/bin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
+validate "$?"
+
+desc "${AA_DISK}: Partition"
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	/usr/bin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8e00 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
+else
+	/usr/bin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8300 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
+fi
+validate "$?"
+
+desc "${AA_DISK}: Labels"
+/usr/bin/sgdisk -c 1:"archlinux" -c 2:"uefi" ${AA_DISK} >/dev/null 2>&1
+validate "$?"
+# }}}
+# Prereq: LUKS2 {{{
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	desc "LUKS2: Clear Metadata"
+	/usr/bin/dmsetup remove_all >/dev/null 2>&1
+	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
+	validate "$?"
+
+	desc "LUKS2: Encrypting Partition ${AA_DISK}1"
+	printf "\n\x1b[38;5;6m ≡ WARNING:\x1b[0m encryption password will be needed at every boot\n"
+	/usr/bin/cryptsetup --type luks2 -q -c aes-xts-plain64 -l 512 -h sha512 --pbkdf argon2i --pbkdf-force-iterations 4 --pbkdf-memory 1048576 --pbkdf-parallel 1 --label archlinux --subsystem "" --use-random luksFormat ${AA_DISK}1
+	validate "$?"
+
+	desc "LUKS2: Decrypting Partition ${AA_DISK}1"
+	printf "\n"
+	/usr/bin/cryptsetup open --type luks2 ${AA_DISK}1 cryptlvm
+	validate "$?"
+else
+	desc "LVM: Clear Metadata"
+	/usr/bin/dmsetup remove_all >/dev/null 2>&1
+	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
+	validate "$?"
+fi
+# }}}
+# Prereq: LVM {{{
+desc "LVM: Initialize Physical Volume"
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	/usr/bin/pvcreate --yes /dev/mapper/cryptlvm >/dev/null 2>&1
+else
+	/usr/bin/pvcreate --yes ${AA_DISK}1 >/dev/null 2>&1
+fi
+validate "$?"
+
+desc "LVM: Create Volume Group"
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	/usr/bin/vgcreate --yes ${AA_HOST} /dev/mapper/cryptlvm >/dev/null 2>&1
+else
+	/usr/bin/vgcreate --yes ${AA_HOST} ${AA_DISK}1 >/dev/null 2>&1
+fi
+validate "$?"
+
+desc "LVM: Create Logical Volume (${AA_HOST}-swap)"
+/usr/bin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
+validate "$?"
+
+desc "LVM: Create Logical Volume (${AA_HOST}-root)"
+/usr/bin/lvcreate --yes -l +100%FREE ${AA_HOST} --name root >/dev/null 2>&1
+validate "$?"
+# }}}
+# Prereq: Filesystems {{{
+desc "Format: Ext4 (${AA_HOST}-root)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-root >/dev/null 2>&1
+validate "$?"
+
+desc "Format: FAT32 (${AA_DISK}2)"
+/usr/bin/mkfs.fat -F32 ${AA_DISK}2 >/dev/null 2>&1
+validate "$?"
+
+desc "Swap: Create"
+/usr/bin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+validate "$?"
+
+desc "Swap: Enable"
+/usr/bin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+validate "$?"
+
+desc "Mount: $(echo ${AA_HOST} | awk '{print toupper($0)}') => /mnt"
+/usr/bin/mount /dev/mapper/${AA_HOST}-root /mnt >/dev/null 2>&1
+validate "$?"
+
+desc "Create: /boot"
+/usr/bin/mkdir /mnt/boot >/dev/null 2>&1
+validate "$?"
+
+desc "Mount: UEFI => /mnt/boot"
+/usr/bin/mount ${AA_DISK}2 /mnt/boot >/dev/null 2>&1
+validate "$?"
+# }}}
+# Installation {{{
+desc "Installation"
+_PACSTRAP=(base base-devel bc bind-tools colordiff dateutils efibootmgr fish gptfdisk git htop iotop lvm2 nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo unrar unzip vim zip)
+if [ "${AA_UCODE^^}" = "INTEL" ]; then
+	_PACSTRAP+=(i7z intel-ucode)
+elif [ "${AA_UCODE^^}" = "AMD" ]; then
+	_PACSTRAP+=(amd-ucode)
+fi
+if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_PACSTRAP+=(qemu-guest-agent)
+fi
+if [ "${AA_XORG}" -ne "0" ]; then
+	_PACSTRAP+=(alsa-utils pulseaudio-alsa xorg-server xorg-xinit xorg-apps)
+	if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+		if [ "${AA_XORG}" -eq "1" ]; then
+			_PACSTRAP+=(spice-cdagent xf86-video-qxl)
+		fi
+	else
+		if [ "${AA_XORG}" -eq "1" ]; then
+			_PACSTRAP+=(libva-intel-driver libvdpau-va-gl mesa-vdpau vdpauinfo xf86-video-intel)
+		elif [ "${AA_XORG}" -eq "2" ]; then
+			_PACSTRAP+=(mesa-vdpau nvidia nvidia-settings vdpauinfo)
+		fi
+	fi
+fi
+/usr/bin/pacstrap "/mnt" "${_PACSTRAP[@]}" >/dev/null 2>&1
+validate "$?"
+
+desc "Generate: /etc/fstab"
+/usr/bin/genfstab -pU /mnt >> /mnt/etc/fstab
+validate "$?"
+
+desc "Modify: /etc/fstab"
+/usr/bin/sed -i 's/rw,relatime\t/rw,relatime,journal_checksum\t/' /mnt/etc/fstab >/dev/null 2>&1
+validate "$?"
+# }}}
+# Install: Configuration {{{
+desc "Modify: Superuser Password"
+/usr/bin/arch-chroot /mnt chpasswd <<< "root:${AA_PASSWD}" >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /etc/mkinitcpio.conf"
+_MODULES="crc32_generic crc32c-intel fuse lz4 lz4_compress"
+if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_MODULES="${_MODULES} virtio virtio_blk virtio_pci virtio_net"
+else
+	if [ "${AA_XORG}" -eq "1" ]; then
+		_MODULES="${_MODULES} i915"
+	elif [ "${AA_XORG}" -eq "2" ]; then
+		_MODULES="${_MODULES} nvidia nvidia_modeset nvidia_uvm nvidia_drm"
+	fi
+fi
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	_MODULES="acpi_ipmi ${_MODULES}"
+fi
+_STRING=("-i" "-e" "s/^MODULES=()/MODULES=(${_MODULES})/")
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-encrypt sd-lvm2 filesystems/")
+else
+	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-lvm2 filesystems/")
+fi
+/usr/bin/sed "${_STRING[@]}" /mnt/etc/mkinitcpio.conf >/dev/null 2>&1
+validate "$?"
+
+desc "Config: /etc/vconsole.conf"
+/usr/bin/cat > /mnt/etc/vconsole.conf <<EOF
+FONT=agave-r
+MAP=8859-2
+EOF
+validate "$?"
+
+desc "Config: Initial Ramdisk Environment"
+/usr/bin/arch-chroot /mnt mkinitcpio -p linux >/dev/null 2>&1
+validate "$?"
+
+desc "Create: User Account"
+/usr/bin/arch-chroot /mnt useradd -m -G wheel,systemd-journal -s /bin/bash ${AA_USERNAME}
+validate "$?"
+
+desc "Modify: User Password"
+/usr/bin/arch-chroot /mnt chpasswd <<< "${AA_USERNAME}:${AA_PASSWD}" >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: Root \$EDITOR"
+echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc
+validate "$?"
+
+desc "Permissions: /bin/su"
+/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su >/dev/null 2>&1
+/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su-l >/dev/null 2>&1
+validate "$?"
+
+desc "Permissions: /boot, /root, /home/${AA_USERNAME}"
+/usr/bin/arch-chroot /mnt chmod -R go-rwx /root /home/kyau /boot
+validate "$?"
+
+desc "Install: Refind"
+/usr/bin/arch-chroot /mnt refind-install >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /boot/EFI/refind/refind.conf"
+_UUID=$(blkid -s PARTUUID -o value ${AA_DISK}2)
+_ROOT="root=/dev/mapper/${AA_HOST}-root"
+_OPTIONS="rw add_efi_memmap zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
+_TIMEOUT="10"
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_TIMEOUT="3"
+fi
+if [ "${AA_UCODE^^}" = "AMD" ]; then
+	_OPTIONS="${_OPTIONS} initrd=/amd-ucode.img"
+elif [ "${AA_UCODE^^}" = "INTEL" ]; then
+	_OPTIONS="${_OPTIONS} initrd=/intel-ucode.img"
+fi
+if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
+	if [ "${AA_XORG}" -eq "1" ]; then
+		_OPTIONS="${_OPTIONS} i915.enable_fbc=1 i915.enable_guc=2 i915.fastboot=1"
+	elif [ "${AA_XORG}" -eq "2" ]; then
+		_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1"
+	fi
+fi
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	_UUID_LUKS=$(blkid -s UUID -o value ${AA_DISK}1)
+	_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=discard root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
+fi
+/usr/bin/cat > /mnt/boot/EFI/refind/refind.conf << EOF
+# \$KYAULabs: refind.conf,v 1.000 2019/07/26 14:23:04 kyau Exp \$
+
+timeout ${_TIMEOUT}
+resolution 4
+scan_driver_dirs EFI/BOOT/drivers_x64,EFI/BOOT/drivers,EFI/refind/drivers_x64,EFI/refind/drivers
+dont_scan_dirs EFI/Dell
+scan_all_linux_kernels false
+
+menuentry "Arch Linux" {
+	icon /EFI/refind/themes/refind-kyaulabs/icons/os_arch.png
+	volume "${_UUID}"
+	loader /vmlinuz-linux
+	initrd /initramfs-linux.img
+	options "${_ROOT} ${_OPTIONS}"
+	submenuentry "Boot using fallback initramfs" {
+		initrd /initramfs-linux-fallback.img
+	}
+}
+
+include themes/refind-kyaulabs/theme.conf
+
+# vim: ft=conf sts=4 sw=4 ts=4 noet:
+EOF
+validate "$?"
+
+desc "Secure: /boot"
+/usr/bin/sed -i 's/rw,relatime,fmask/ro,noatime,nodev,noexec,nosuid,fmask/' /mnt/etc/fstab
+validate "$?"
+
+desc "Secure: /dev/shm"
+echo -e "tmpfs\t/dev/shm\ttmpfs\trw,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Secure: /tmp"
+echo -e "tmpfs\t/tmp\ttmpfs\trw,noatime,nodev,nosuid,mode=1777\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Secure: /var/tmp"
+echo -e "/tmp\t/var/tmp\tnone\trw,noatime,nodev,noexec,nosuid,bind\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Secure: /proc"
+echo -e "proc\t/proc\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+desc "Security: Kernel Runtime Parameters"
+/usr/bin/cat > /mnt/etc/sysctl.d/50-security.conf << EOF
+net.ipv4.conf.all.secure_redirects=0
+net.ipv4.conf.default.secure_redirects=0
+net.ipv4.conf.default.send_redirects=0
+net.ipv4.conf.all.send_redirects=0
+net.ipv4.tcp_syncookies=1
+net.ipv4.tcp_rfc1337=1
+kernel.dmesg_restrict=1
+kernel.kptr_restrict=1
+EOF
+validate "$?"
+
+desc "Modify: Oldschool NIC Names"
+/usr/bin/ln -sf /dev/null /mnt/etc/udev/rules.d/80-net-setup-link.rules
+validate "$?"
+
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+		desc "Set: Auto-login ${AA_USERNAME}"
+		/usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d/
+		/usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/override.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/usr/bin/agetty --autologin ${AA_USERNAME} --noclear %I \$TERM
+EOF
+		validate "$?"
+	fi
+fi
+
+desc "Config: eth0"
+_NIC="[Match]\nName=eth0\n\n[Network]\n"
+_DNS=""
+if [ -z "${AA_DNS}" ] || [ "${AA_DNS^^}" = "CLOUDFLARE" ]; then
+	_DNS="DNS=1.1.1.1\nDNS=1.0.0.1\n"
+elif [ "${AA_DNS^^}" = "OPENDNS" ]; then
+	_DNS="DNS=208.67.222.222\nDNS=208.67.220.220\n"
+elif [ "${AA_DNS^^}" = "GOOGLE" ]; then
+	_DNS="DNS=8.8.8.8\nDNS=8.8.4.4\n"
+elif [ "${AA_DNS^^}" = "NEUSTAR" ]; then
+	_DNS="DNS=156.154.70.5\nDNS=156.154.71.5\n"
+else
+	_DNS="DNS=${AA_DNS}\n"
+fi
+_DNS="${_DNS}DNSOverTLS=opportunistic\n"
+if [ "${#AA_DOMAINS[*]}" -gt 0 ]; then
+	for i in "${AA_DOMAINS[@]}"; do
+		_DNS="${_DNS}Domains=${i}\n"
+	done
+fi
+if [ -n "${AA_IPADDR}" ]; then
+	_NIC="${_NIC}DHCP=no\n${_DNS}\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
+else
+	_NIC="${_NIC}DHCP=ipv4\n${_DNS}\nNTP=pool.ntp.org\n[Address]\nLabel=archlinux"
+fi
+echo -e "${_NIC}" > /mnt/etc/systemd/network/eth0.network
+validate "$?"
+
+if [ -n "${AA_WIFI_SSID}" ]; then
+	desc "Create: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
+	/usr/bin/arch-chroot /mnt /usr/bin/wpa_passphrase ${AA_WIFI_SSID} ${AA_WIFI_PASSWD} > /mnt/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+	validate "$?"
+
+	desc "Config: wlan0"
+	echo -e "[Match]\nName=wlan0\n\n[Network]\nDHCP=ipv4\n${_DNS}\nNTP=pool.ntp.org\n[Address]\nLabel=archlinux" > /mnt/etc/systemd/network/wlan0.network
+	validate "$?"
+
+	desc "Systemd: Enable (wpa_supplicant@wlan0.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable wpa_supplicant@wlan0.service >/dev/null 2>&1
+	validate "$?"
+fi
+
+desc "Modify: /etc/pacman.conf"
+/usr/bin/sed -i 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /etc/hostname"
+echo -e "${AA_HOSTNAME}" > /mnt/etc/hostname
+validate "$?"
+
+desc "Modify: /etc/hosts"
+echo -e "127.0.0.1\t${AA_HOST}.localhost.localdomain\t${AA_HOST}\n127.0.0.1\tlocalhost" >> /mnt/etc/hosts
+validate "$?"
+
+desc "Symlink: /etc/localtime"
+/usr/bin/arch-chroot /mnt ln -sf /usr/share/zoneinfo/${AA_TZ} /etc/localtime
+validate "$?"
+
+desc "Sync: Clock"
+/usr/bin/arch-chroot /mnt hwclock --systohc
+validate "$?"
+
+desc "Modify: /etc/locale.gen"
+/usr/bin/sed -i 's/^#en_US\.UTF/en_US\.UTF/' /mnt/etc/locale.gen >/dev/null 2>&1
+validate "$?"
+
+desc "Generate: Locale"
+/usr/bin/arch-chroot /mnt locale-gen >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /etc/locale.conf"
+echo "LANG=en_US.UTF-8" > /mnt/etc/locale.conf
+validate "$?"
+
+desc "Modify: /etc/pacman.d/mirrorlist"
+/usr/bin/arch-chroot /mnt reflector --latest 100 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+validate "$?"
+
+desc "Download: AUR Helper (pikaur)"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'git clone https://aur.archlinux.org/pikaur.git' >/dev/null 2>&1
+validate "$?"
+
+desc "Compile: AUR Helper (pikaur)"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'cd pikaur && makepkg -fsr --noconfirm' >/dev/null 2>&1
+validate "$?"
+
+desc "Install: AUR Helper (pikaur)"
+T_PIKAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/pikaur/ | /usr/bin/grep .tar.xz)
+/usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/pikaur/${T_PIKAUR}" --noconfirm >/dev/null 2>&1
+validate "$?"
+
+desc "Remove: AUR Helper Source"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'rm -rf pikaur'
+validate "$?"
+
+if [ -n "${AA_TFAN_CONFIG}" ]; then
+	desc "Download: Thinkfan (AUR)"
+	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'git clone https://aur.archlinux.org/thinkfan-git.git' >/dev/null 2>&1
+	validate "$?"
+
+	desc "Compile: Thinkfan (AUR)"
+	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'cd thinkfan-git && makepkg -fsr --noconfirm' >/dev/null 2>&1
+	validate "$?"
+
+	desc "Install: Thinkfan (AUR)"
+	T_THINKFAN=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/thinkfan-git/ | /usr/bin/grep .tar.xz)
+	/usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/thinkfan-git/${T_THINKFAN}" --noconfirm >/dev/null 2>&1
+	validate "$?"
+
+	desc "Remove: Thinkfan Source"
+	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'rm -rf thinkfan-git'
+	validate "$?"
+
+	desc "Remove: Thinkfan Build Depends"
+	/usr/bin/arch-chroot /mnt pacman -Rs boost --noconfirm >/dev/null 2>&1
+	validate "$?"
+fi
+
+desc "Modify: /etc/makepkg.conf"
+/usr/bin/sed -i 's/^#BUILDDIR/BUILDDIR/' /mnt/etc/makepkg.conf
+validate "$?"
+
+desc "Systemd: Keep Boot Mesages"
+/usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d
+/usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
+[Service]
+TTYVTDisallocate=no
+EOF
+validate "$?"
+
+desc "Systemd: Turn Numlock On"
+/usr/bin/mkdir -p /mnt/etc/systemd/system/getty@.service.d
+/usr/bin/cat > /mnt/etc/systemd/system/getty@.service.d/numlock.conf << EOF
+[Service]
+ExecStartPre=/bin/sh -c 'setleds -D +num < /dev/%I'
+EOF
+validate "$?"
+
+desc "Modify: /etc/systemd/timesyncd.conf"
+/usr/bin/cat >> /mnt/etc/systemd/timesyncd.conf << EOF
+NTP=0.arch.pool.ntp.org 1.arch.pool.ntp.org 2.arch.pool.ntp.org 3.arch.pool.ntp.org
+FallbackNTP=0.pool.ntp.org 1.pool.ntp.org 0.us.pool.ntp.org
+EOF
+validate "$?"
+
+desc "Systemd: Enable (systemd-networkd.service)"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd.service >/dev/null 2>&1
+validate "$?"
+
+desc "Systemd: Enable (systemd-resolved.service)"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-resolved.service >/dev/null 2>&1
+validate "$?"
+
+desc "Systemd: Enable (systemd-timesyncd.service)"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-timesyncd.service >/dev/null 2>&1
+validate "$?"
+
+desc "Systemd: Enable (sshd.socket)"
+/usr/bin/arch-chroot /mnt systemctl enable sshd.socket >/dev/null 2>&1
+validate "$?"
+# }}}
+# Install: Security {{{
+desc "Create: /etc/ssh/sshd_config"
+/usr/bin/cat > /mnt/etc/ssh/sshd_config << EOF
+# \$KYAULabs: sshd_config,v 1.000 2019/07/26 14:18:25 kyau Exp \$
+
+# https://cipherli.st/
+Protocol 2
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com
+
+AllowGroups ssh
+Banner /etc/ssh/sshd_banner
+
+ChallengeResponseAuthentication no
+LoginGraceTime 20
+PasswordAuthentication no
+PrintMotd no
+PrintLastLog no
+Subsystem sftp /usr/lib/ssh/sftp-server
+
+# vim: ft=sshdconfig sts=4 sw=4 ts=4 noet:
+EOF
+#/usr/bin/wget ${AA_SSHD_CONFIG} -O /mnt/etc/ssh/sshd_config >/dev/null 2>&1
+validate "$?"
+
+desc "Create: ~/.ssh/"
+/usr/bin/mkdir -p /mnt/home/${AA_USERNAME}/.ssh/
+validate "$?"
+
+desc "Download: ~/.ssh/authorized_keys"
+/usr/bin/wget ${AA_SSH_KEY} -O /mnt/home/${AA_USERNAME}/.ssh/authorized_keys >/dev/null 2>&1
+validate "$?"
+
+desc "Create: /etc/ssh/ssh_config"
+/usr/bin/cat > /mnt/etc/ssh/ssh_config << EOF
+# \$KYAULabs: ssh_config,v 1.000 2019/07/26 23:27:33 kyau Exp \$
+
+# https://cipherli.st/
+Host *
+	ChallengeResponseAuthentication no
+	Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+	ConnectTimeout 30
+	ControlMaster auto
+	ControlPath ~/.ssh/socket-%r@%h:%p
+	ControlPersist yes
+	HashKnownHosts yes
+	KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
+	MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com
+	ServerAliveInterval 10
+
+# vim: ft=sshconfig sts=4 sw=4 ts=4 noet:
+EOF
+#/usr/bin/wget ${AA_SSH_CONFIG} -O /mnt/home/${AA_USERNAME}/.ssh/config >/dev/null 2>&1
+validate "$?"
+
+desc "Permissions: ~/.ssh/"
+/usr/bin/arch-chroot /mnt chown -R ${AA_USERNAME}:${AA_USERNAME} /home/${AA_USERNAME}/.ssh/
+/usr/bin/arch-chroot /mnt chmod -R go-rwx /home/${AA_USERNAME}/.ssh/
+validate "$?"
+
+desc "Create: /etc/ssh/moduli"
+/usr/bin/cp -f moduli /mnt/etc/ssh/moduli >/dev/null 2>&1
+validate "$?"
+
+desc "SSH: Host Key (Ed25519)"
+/usr/bin/ssh-keygen -t ed25519 -f /mnt/etc/ssh/ssh_host_ed25519_key -N "" < /dev/null >/dev/null 2>&1
+validate "$?"
+
+desc "SSH: Host Key (RSA 4096)"
+/usr/bin/ssh-keygen -t rsa -b 4096 -f /mnt/etc/ssh/ssh_host_rsa_key -N "" < /dev/null >/dev/null 2>&1
+validate "$?"
+
+desc "Groupadd: ssh"
+/usr/bin/arch-chroot /mnt groupadd ssh
+/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} ssh >/dev/null 2>&1
+validate "$?"
+
+desc "Groupadd: shm"
+/usr/bin/arch-chroot /mnt groupadd shm
+/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} shm >/dev/null 2>&1
+validate "$?"
+
+desc "Modify: /etc/nftables.conf"
+/usr/bin/cat > /mnt/etc/nftables.conf << EOF
+#!/usr/bin/nft -f
+#
+# \$KYAULabs: nftables.conf,v 1.000 2019/07/26 14:22:07 kyau Exp \$
+# KYAU Labs - IPv4/IPv6 Firewall
+
+table inet filter {
+
+	set blacklist {
+		type ipv4_addr
+		elements = {
+			1.2.3.4
+		}
+	}
+
+	chain input {
+		type filter hook input priority 0;
+
+		# allow established/related connections
+		ct state {established, related} accept
+
+		# early drop of invalid connections
+		ct state invalid drop
+
+		# allow from loopback
+		iifname lo accept
+
+		# add blacklisted ips
+		ip saddr @blacklist drop
+
+		# no ping floods
+		ip6 nexthdr icmpv6 icmpv6 type echo-request limit rate 10/second accept
+		ip protocol icmp icmp type echo-request limit rate 10/second accept
+
+		# allow ssh, but with brute force protection
+		tcp dport ssh limit rate 15/minute accept
+
+		# allow http and https traffic
+		#tcp dport {http,https} accept
+
+		# everything else (blackhole)
+		reject with icmp type port-unreachable
+	}
+
+	# all forwarding traffic gets dropped (we are not a router)
+	chain forward {
+		type filter hook forward priority 0;
+		drop
+	}
+
+	# let all traffic outbound through the firewall
+	chain output {
+		type filter hook output priority 0;
+		accept
+	}
+
+}
+
+# vim: ft=conf sts=4 sw=4 ts=4 noet:
+EOF
+validate "$?"
+
+desc "Systemd: Enable (nftables.service)"
+/usr/bin/arch-chroot /mnt systemctl enable nftables.service >/dev/null 2>&1
+validate "$?"
+
+desc "Create: /etc/sudoers.d/kyaulabs"
+/usr/bin/cat > /mnt/etc/sudoers.d/kyaulabs << EOF
+Defaults editor=/usr/bin/rvim
+Defaults env_keep += "SSH_AUTH_SOCK"
+%wheel ALL=(ALL) ALL
+ALL ALL=(ALL) /usr/sbin/checkupdates
+EOF
+validate "$?"
+
+if [ -n "${AA_TLP_CONFIG}" ]; then
+	desc "Systemd: Enable (tlp.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable tlp.service >/dev/null 2>&1
+	validate "$?"
+
+	desc "Systemd: Enable (tlp-sleep.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable tlp-sleep.service >/dev/null 2>&1
+	validate "$?"
+
+	desc "Systemd: Mask (systemd-rfkill.service)"
+	/usr/bin/arch-chroot /mnt systemctl mask systemd-rfkill.service >/dev/null 2>&1
+	validate "$?"
+
+	desc "Systemd: Mask (systemd-rfkill.socket)"
+	/usr/bin/arch-chroot /mnt systemctl mask systemd-rfkill.socket >/dev/null 2>&1
+	validate "$?"
+
+	desc "Download: /etc/defaults/tlp"
+	/usr/bin/wget ${AA_TLP_CONFIG} -O /mnt/etc/default/tlp >/dev/null 2>&1
+	validate "$?"
+fi
+
+if [ -n "${AA_TFAN_CONFIG}" ]; then
+	desc "Download: /etc/thinkpad.conf"
+	/usr/bin/wget ${AA_TFAN_CONFIG} -O /mnt/etc/thinkfan.conf >/dev/null 2>&1
+	validate "$?"
+
+	desc "Systemd: Enable (thinkfan.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable thinkfan.service >/dev/null 2>&1
+	validate "$?"
+fi
+# }}}
+# Post-Install {{{
+desc "Create: /etc/systemd/system/firstboot.service"
+/usr/bin/cat > /mnt/etc/systemd/system/firstboot.service << EOF
+[Unit]
+Description=First Boot
+
+[Service]
+ExecStart=/root/firstboot
+
+[Install]
+WantedBy=multi-user.target
+EOF
+validate "$?"
+
+desc "Create: /root/firstboot"
+/usr/bin/cat > /mnt/root/firstboot << EOF
+#!/bin/sh
+sensors-detect
+timedatectl set-ntp true
+localectl set-locale LANG=en_US.UTF-8
+systemctl disable firstboot.service
+rm /etc/systemd/system/firstboot.service
+rm /root/firstboot
+EOF
+validate "$?"
+
+desc "Permissions: /root/firstboot"
+/usr/bin/chmod 755 /mnt/root/firstboot
+validate "$?"
+
+desc "Systemd: Enable (firstboot.service)"
+/usr/bin/arch-chroot /mnt systemctl enable firstboot >/dev/null 2>&1
+validate "$?"
+
+printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m umount -R /mnt\\n"
+printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m systemctl reboot\\n\\n"
+# }}}
+
+# vim: ft=sh sts=4 sw=4 ts=4 noet:
