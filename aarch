@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.029 2019/07/28 15:38:20 kyau Exp $
+# $KYAULabs: aarch,v 2.1.9 2019/07/30 14:58:43 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -442,10 +442,6 @@ MAP=8859-2
 EOF
 validate "$?"
 
-desc "Config: Initial Ramdisk Environment"
-/usr/bin/arch-chroot /mnt mkinitcpio -p linux >/dev/null 2>&1
-validate "$?"
-
 desc "Create: User Account"
 /usr/bin/arch-chroot /mnt useradd -m -G wheel,systemd-journal -s /bin/bash ${AA_USERNAME}
 validate "$?"
@@ -505,7 +501,7 @@ dont_scan_dirs EFI/Dell
 scan_all_linux_kernels false
 
 menuentry "Arch Linux" {
-	icon /EFI/refind/themes/refind-kyaulabs/icons/os_arch.png
+	icon /EFI/refind/themes/refind-aarch/icons/os_arch.png
 	volume "${_UUID}"
 	loader /vmlinuz-linux
 	initrd /initramfs-linux.img
@@ -515,10 +511,23 @@ menuentry "Arch Linux" {
 	}
 }
 
-include themes/refind-kyaulabs/theme.conf
+include themes/refind-aarch/theme.conf
 
 # vim: ft=conf sts=4 sw=4 ts=4 noet:
 EOF
+validate "$?"
+
+desc "Install: rEFInd-theme"
+/usr/sbin/mkdir -p /mnt/boot/EFI/refind/themes
+/usr/bin/arch-chroot /mnt git clone https://gitlab.com/kyaulabs/refind-aarch.git /boot/EFI/refind/themes/refind-aarch >/dev/null 2>&1
+validate "$?"
+
+desc "Install: Console Font"
+/usr/bin/cp /mnt/boot/EFI/refind/themes/refind-aarch/fonts/agave-r.psf.gz /mnt/usr/share/kbd/consolefonts/ >/dev/null 2>&1
+validate "$?"
+
+desc "Config: Initial Ramdisk Environment"
+/usr/bin/arch-chroot /mnt mkinitcpio -p linux >/dev/null 2>&1
 validate "$?"
 
 desc "Secure: /boot"
