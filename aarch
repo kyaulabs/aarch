@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.1.9 2019/07/30 14:58:43 kyau Exp $
+# $KYAULabs: aarch,v 2.3.0 2019/08/03 21:16:13 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -25,7 +25,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-set -eu
+set -u
 IFS=$'\n\t'
 
 # Default Functions {{{
@@ -46,10 +46,10 @@ function desc() {
 function validate() {
 	# if failure else success
 	if [[ "$1" -ne 0 ]]; then
-		>&2 printf "\\x1b[31m\\u203c\\x1b[0m\\n"
+		>&2 printf "\\n \\x1b[31mx\\x1b[0m %s\\n\\n" "${_AA_CMD}"
 		exit 1
 	else
-		>&2 printf "\\x1b[1;32m\\u2713\\x1b[0m\\n"
+		>&2 printf " \\x1b[1;32m\\u221a\\x1b[0m"
 	fi
 }
 # }}}
@@ -260,29 +260,33 @@ printf " \\x1b[38;5;235m└─────────────────�
 # Prereq: Internet Status {{{
 echo -e
 desc "Internet Status"
+_AA_CMD="Internet Check"
 /usr/bin/wget -q --tries=10 --timeout=20 --spider http://www.archlinux.org >/dev/null 2>&1
 validate "$?"
+
+printf "\\n"
 # }}}
 # Prereq: Disk Partition {{{
+desc "Prereq: [0mDisk Partition"
 if /usr/bin/mount | /usr/bin/grep /mnt > /dev/null; then
-	desc "${AA_DISK}: Unmount All"
+	_AA_CMD="${AA_DISK}: Unmount All"
 	/usr/bin/umount -R /mnt >/dev/null 2>&1
 	validate "$?"
 fi
 
-desc "${AA_DISK}: Erase (block-level wipe)"
+_AA_CMD="${AA_DISK}: Erase (block-level wipe)"
 /usr/bin/dd if=/dev/zero of=${AA_DISK} bs=1k count=2048 >/dev/null 2>&1
 validate "$?"
 
-desc "${AA_DISK}: Erase (filesystem signature)"
+_AA_CMD="${AA_DISK}: Erase (filesystem signature)"
 /usr/bin/wipefs -af "${AA_DISK}" >/dev/null 2>&1
 validate "$?"
 
-desc "${AA_DISK}: Erase (MBR/GPT data structs)"
+_AA_CMD="${AA_DISK}: Erase (MBR/GPT data structs)"
 /usr/bin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
 validate "$?"
 
-desc "${AA_DISK}: Partition"
+_AA_CMD="${AA_DISK}: Partition"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	/usr/bin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8e00 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
 else
@@ -290,35 +294,40 @@ else
 fi
 validate "$?"
 
-desc "${AA_DISK}: Labels"
+_AA_CMD="${AA_DISK}: Labels"
 /usr/bin/sgdisk -c 1:"archlinux" -c 2:"uefi" ${AA_DISK} >/dev/null 2>&1
 validate "$?"
 # }}}
 # Prereq: LUKS2 {{{
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	desc "LUKS2: Clear Metadata"
+	printf "\\n"
+	desc "Prereq: [0mLUKS2"
+	_AA_CMD="LUKS2: Clear Metadata"
 	/usr/bin/dmsetup remove_all >/dev/null 2>&1
 	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
 	validate "$?"
 
-	desc "LUKS2: Encrypting Partition ${AA_DISK}1"
+	_AA_CMD="LUKS2: Encrypting Partition ${AA_DISK}1"
 	printf "\n\x1b[38;5;6m ≡ WARNING:\x1b[0m encryption password will be needed at every boot\n"
 	/usr/bin/cryptsetup --type luks2 -q -c aes-xts-plain64 -l 512 -h sha512 --pbkdf argon2i --pbkdf-force-iterations 4 --pbkdf-memory 1048576 --pbkdf-parallel 1 --label archlinux --subsystem "" --use-random luksFormat ${AA_DISK}1
 	validate "$?"
 
-	desc "LUKS2: Decrypting Partition ${AA_DISK}1"
+	_AA_CMD="LUKS2: Decrypting Partition ${AA_DISK}1"
 	printf "\n"
 	/usr/bin/cryptsetup open --type luks2 ${AA_DISK}1 cryptlvm
 	validate "$?"
 else
-	desc "LVM: Clear Metadata"
+	_AA_CMD="LVM: Clear Metadata"
 	/usr/bin/dmsetup remove_all >/dev/null 2>&1
 	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
 	validate "$?"
 fi
+
+printf "\\n"
 # }}}
 # Prereq: LVM {{{
-desc "LVM: Initialize Physical Volume"
+desc "Prereq: [0mLVM"
+_AA_CMD="LVM: Initialize Physical Volume"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	/usr/bin/pvcreate --yes /dev/mapper/cryptlvm >/dev/null 2>&1
 else
@@ -326,7 +335,7 @@ else
 fi
 validate "$?"
 
-desc "LVM: Create Volume Group"
+_AA_CMD="LVM: Create Volume Group"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	/usr/bin/vgcreate --yes ${AA_HOST} /dev/mapper/cryptlvm >/dev/null 2>&1
 else
@@ -334,42 +343,47 @@ else
 fi
 validate "$?"
 
-desc "LVM: Create Logical Volume (${AA_HOST}-swap)"
+_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-swap)"
 /usr/bin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
 validate "$?"
 
-desc "LVM: Create Logical Volume (${AA_HOST}-root)"
+_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-root)"
 /usr/bin/lvcreate --yes -l +100%FREE ${AA_HOST} --name root >/dev/null 2>&1
 validate "$?"
+
+printf "\\n"
 # }}}
 # Prereq: Filesystems {{{
-desc "Format: Ext4 (${AA_HOST}-root)"
+desc "Prereq: [0mFilesystems"
+_AA_CMD="Format: Ext4 (${AA_HOST}-root)"
 /usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-root >/dev/null 2>&1
 validate "$?"
 
-desc "Format: FAT32 (${AA_DISK}2)"
+_AA_CMD="Format: FAT32 (${AA_DISK}2)"
 /usr/bin/mkfs.fat -F32 ${AA_DISK}2 >/dev/null 2>&1
 validate "$?"
 
-desc "Swap: Create"
+_AA_CMD="Swap: Create"
 /usr/bin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
 validate "$?"
 
-desc "Swap: Enable"
+_AA_CMD="Swap: Enable"
 /usr/bin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
 validate "$?"
 
-desc "Mount: $(echo ${AA_HOST} | awk '{print toupper($0)}') => /mnt"
+_AA_CMD="Mount: $(echo ${AA_HOST} | awk '{print toupper($0)}') => /mnt"
 /usr/bin/mount /dev/mapper/${AA_HOST}-root /mnt >/dev/null 2>&1
 validate "$?"
 
-desc "Create: /boot"
+_AA_CMD="Create Directory: /boot"
 /usr/bin/mkdir /mnt/boot >/dev/null 2>&1
 validate "$?"
 
-desc "Mount: UEFI => /mnt/boot"
+_AA_CMD="Mount: UEFI => /mnt/boot"
 /usr/bin/mount ${AA_DISK}2 /mnt/boot >/dev/null 2>&1
 validate "$?"
+
+printf "\\n"
 # }}}
 # Installation {{{
 desc "Installation"
@@ -380,13 +394,15 @@ elif [ "${AA_UCODE^^}" = "AMD" ]; then
 	_PACSTRAP+=(amd-ucode)
 fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_PACSTRAP+=(qemu-guest-agent)
+	_PACSTRAP+=(haveged qemu-guest-agent)
+else
+	_PACSTRAP+=(lm_sensors)
 fi
 if [ "${AA_XORG}" -ne "0" ]; then
 	_PACSTRAP+=(alsa-utils pulseaudio-alsa xorg-server xorg-xinit xorg-apps)
 	if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 		if [ "${AA_XORG}" -eq "1" ]; then
-			_PACSTRAP+=(spice-cdagent xf86-video-qxl)
+			_PACSTRAP+=(spice-vdagent xf86-video-qxl)
 		fi
 	else
 		if [ "${AA_XORG}" -eq "1" ]; then
@@ -396,78 +412,92 @@ if [ "${AA_XORG}" -ne "0" ]; then
 		fi
 	fi
 fi
+if [ -n "${AA_TFAN_CONFIG}" ]; then
+	_PACSTRAP+=(boost cmake libatasmart yaml-cpp)
+fi
+if [ -n "${AA_TLP_CONFIG}" ]; then
+	_PACSTRAP+=(tlp)
+fi
+_AA_CMD="Pacstrap Installation Script"
 /usr/bin/pacstrap "/mnt" "${_PACSTRAP[@]}" >/dev/null 2>&1
 validate "$?"
 
-desc "Generate: /etc/fstab"
+printf "\\n"
+# }}}
+# Config: Mount Points {{{
+desc "Config: [0mMount Points"
+_AA_CMD="Generate: /etc/fstab"
 /usr/bin/genfstab -pU /mnt >> /mnt/etc/fstab
 validate "$?"
 
-desc "Modify: /etc/fstab"
+_AA_CMD="Fstab: Journal Checksums"
 /usr/bin/sed -i 's/rw,relatime\t/rw,relatime,journal_checksum\t/' /mnt/etc/fstab >/dev/null 2>&1
 validate "$?"
+
+_AA_CMD="Fstab: Secure /boot"
+/usr/bin/sed -i 's/rw,relatime,fmask/ro,noatime,nodev,noexec,nosuid,fmask/' /mnt/etc/fstab
+validate "$?"
+
+_AA_CMD="Fstab: Secure /dev/shm"
+echo -e "tmpfs\t/dev/shm\ttmpfs\trw,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+_AA_CMD="Fstab: Secure /tmp"
+echo -e "tmpfs\t/tmp\ttmpfs\trw,noatime,nodev,nosuid,mode=1777\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+_AA_CMD="Fstab: Secure /var/tmp"
+echo -e "/tmp\t/var/tmp\tnone\trw,noatime,nodev,noexec,nosuid,bind\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+_AA_CMD="Fstab: Secure /proc"
+echo -e "proc\t/proc\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
+validate "$?"
+
+printf "\\n"
 # }}}
-# Install: Configuration {{{
-desc "Modify: Superuser Password"
+# Config: User Accounts {{{
+desc "Config: [0mUser Accounts"
+_AA_CMD="Modify: Superuser Password"
 /usr/bin/arch-chroot /mnt chpasswd <<< "root:${AA_PASSWD}" >/dev/null 2>&1
 validate "$?"
 
-desc "Modify: /etc/mkinitcpio.conf"
-_MODULES="crc32_generic crc32c-intel fuse lz4 lz4_compress"
-if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_MODULES="${_MODULES} virtio virtio_blk virtio_pci virtio_net"
-else
-	if [ "${AA_XORG}" -eq "1" ]; then
-		_MODULES="${_MODULES} i915"
-	elif [ "${AA_XORG}" -eq "2" ]; then
-		_MODULES="${_MODULES} nvidia nvidia_modeset nvidia_uvm nvidia_drm"
-	fi
-fi
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
-	_MODULES="acpi_ipmi ${_MODULES}"
-fi
-_STRING=("-i" "-e" "s/^MODULES=()/MODULES=(${_MODULES})/")
-if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-encrypt sd-lvm2 filesystems/")
-else
-	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-lvm2 filesystems/")
-fi
-/usr/bin/sed "${_STRING[@]}" /mnt/etc/mkinitcpio.conf >/dev/null 2>&1
-validate "$?"
-
-desc "Config: /etc/vconsole.conf"
-/usr/bin/cat > /mnt/etc/vconsole.conf <<EOF
-FONT=agave-r
-MAP=8859-2
-EOF
-validate "$?"
-
-desc "Create: User Account"
+_AA_CMD="Create: User Account ${AA_USERNAME}"
 /usr/bin/arch-chroot /mnt useradd -m -G wheel,systemd-journal -s /bin/bash ${AA_USERNAME}
 validate "$?"
 
-desc "Modify: User Password"
+_AA_CMD="Modify: User Password ${AA_USERNAME}"
 /usr/bin/arch-chroot /mnt chpasswd <<< "${AA_USERNAME}:${AA_PASSWD}" >/dev/null 2>&1
 validate "$?"
 
-desc "Modify: Root \$EDITOR"
-echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc
+_AA_CMD="Create: /etc/sudoers.d/kyaulabs"
+/usr/bin/cat > /mnt/etc/sudoers.d/kyaulabs << EOF
+Defaults editor=/usr/bin/rvim
+Defaults env_keep += "SSH_AUTH_SOCK"
+%wheel ALL=(ALL) ALL
+ALL ALL=(ALL) /usr/sbin/checkupdates
+EOF
 validate "$?"
 
-desc "Permissions: /bin/su"
-/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su >/dev/null 2>&1
-/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su-l >/dev/null 2>&1
+_AA_CMD="Groupadd: ssh"
+/usr/bin/arch-chroot /mnt groupadd ssh
+/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} ssh >/dev/null 2>&1
 validate "$?"
 
-desc "Permissions: /boot, /root, /home/${AA_USERNAME}"
-/usr/bin/arch-chroot /mnt chmod -R go-rwx /root /home/kyau /boot
+_AA_CMD="Groupadd: shm"
+/usr/bin/arch-chroot /mnt groupadd shm
+/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} shm >/dev/null 2>&1
 validate "$?"
 
-desc "Install: Refind"
+printf "\\n"
+# }}}
+# Config: Bootloader {{{
+desc "Config: [0mBootloader"
+_AA_CMD="Install: Refind"
 /usr/bin/arch-chroot /mnt refind-install >/dev/null 2>&1
 validate "$?"
 
-desc "Modify: /boot/EFI/refind/refind.conf"
+_AA_CMD="Modify: /boot/EFI/refind/refind.conf"
 _UUID=$(blkid -s PARTUUID -o value ${AA_DISK}2)
 _ROOT="root=/dev/mapper/${AA_HOST}-root"
 _OPTIONS="rw add_efi_memmap zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
@@ -484,7 +514,7 @@ if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 	if [ "${AA_XORG}" -eq "1" ]; then
 		_OPTIONS="${_OPTIONS} i915.enable_fbc=1 i915.enable_guc=2 i915.fastboot=1"
 	elif [ "${AA_XORG}" -eq "2" ]; then
-		_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1"
+		_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1"
 	fi
 fi
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
@@ -517,40 +547,77 @@ include themes/refind-aarch/theme.conf
 EOF
 validate "$?"
 
-desc "Install: rEFInd-theme"
+_AA_CMD="Install: rEFInd-theme"
 /usr/sbin/mkdir -p /mnt/boot/EFI/refind/themes
 /usr/bin/arch-chroot /mnt git clone https://gitlab.com/kyaulabs/refind-aarch.git /boot/EFI/refind/themes/refind-aarch >/dev/null 2>&1
 validate "$?"
 
-desc "Install: Console Font"
+_AA_CMD="Install: Console Font"
 /usr/bin/cp /mnt/boot/EFI/refind/themes/refind-aarch/fonts/agave-r.psf.gz /mnt/usr/share/kbd/consolefonts/ >/dev/null 2>&1
 validate "$?"
 
-desc "Config: Initial Ramdisk Environment"
+printf "\\n"
+# }}}
+# Config: Kernel {{{
+desc "Config: [0mKernel"
+_AA_CMD="Modify: /etc/mkinitcpio.conf"
+_MODULES="crc32_generic crc32c-intel fuse lz4 lz4_compress"
+if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_MODULES="${_MODULES} virtio virtio_blk virtio_pci virtio_net"
+else
+	if [ "${AA_XORG}" -eq "1" ]; then
+		_MODULES="${_MODULES} i915"
+	elif [ "${AA_XORG}" -eq "2" ]; then
+		_MODULES="${_MODULES} nvidia nvidia_modeset nvidia_uvm nvidia_drm"
+	fi
+fi
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	_MODULES="acpi_ipmi ${_MODULES}"
+fi
+_STRING=("-i" "-e" "s/^MODULES=()/MODULES=(${_MODULES})/")
+if [ "${AA_ENCRYPT}" -eq "1" ]; then
+	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-encrypt sd-lvm2 filesystems/")
+else
+	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-lvm2 filesystems/")
+fi
+/usr/bin/sed "${_STRING[@]}" /mnt/etc/mkinitcpio.conf >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Config: /etc/vconsole.conf"
+/usr/bin/cat > /mnt/etc/vconsole.conf <<EOF
+FONT=agave-r
+MAP=8859-2
+EOF
+validate "$?"
+
+_AA_CMD="Generate: Initial Ramdisk Environment"
 /usr/bin/arch-chroot /mnt mkinitcpio -p linux >/dev/null 2>&1
 validate "$?"
 
-desc "Secure: /boot"
-/usr/bin/sed -i 's/rw,relatime,fmask/ro,noatime,nodev,noexec,nosuid,fmask/' /mnt/etc/fstab
-validate "$?"
+if [ "${AA_XORG}" -eq "2" ]; then
+	_AA_CMD="Create: NVIDIA Pacman Hook"
+	/usr/bin/mkdir -p /mnt/etc/pacman.d/hooks/
+	/usr/bin/cat > /mnt/etc/pacman.d/hooks/nvidia.conf << EOF
+[Trigger]
+Operation=Install
+Operation=Upgrade
+Operation=Remove
+Type=Package
+Target=nvidia
+Target=linux
+# Change the linux part above and in the Exec line if a different kernel is used
 
-desc "Secure: /dev/shm"
-echo -e "tmpfs\t/dev/shm\ttmpfs\trw,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0\t0" >> /mnt/etc/fstab
+[Action]
+Description=Update Nvidia module in initcpio
+Depends=mkinitcpio
+When=PostTransaction
+NeedsTargets
+Exec=/bin/sh -c 'while read -r trg; do case \$trg in linux) exit 0; esac; done; /usr/bin/mkinitcpio -P'
+EOF
 validate "$?"
+fi
 
-desc "Secure: /tmp"
-echo -e "tmpfs\t/tmp\ttmpfs\trw,noatime,nodev,nosuid,mode=1777\t0\t0" >> /mnt/etc/fstab
-validate "$?"
-
-desc "Secure: /var/tmp"
-echo -e "/tmp\t/var/tmp\tnone\trw,noatime,nodev,noexec,nosuid,bind\t0\t0" >> /mnt/etc/fstab
-validate "$?"
-
-desc "Secure: /proc"
-echo -e "proc\t/proc\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
-validate "$?"
-
-desc "Security: Kernel Runtime Parameters"
+_AA_CMD="Security: Kernel Runtime Parameters"
 /usr/bin/cat > /mnt/etc/sysctl.d/50-security.conf << EOF
 net.ipv4.conf.all.secure_redirects=0
 net.ipv4.conf.default.secure_redirects=0
@@ -563,13 +630,50 @@ kernel.kptr_restrict=1
 EOF
 validate "$?"
 
-desc "Modify: Oldschool NIC Names"
+_AA_CMD="Symlink: /etc/localtime"
+/usr/bin/arch-chroot /mnt ln -sf /usr/share/zoneinfo/${AA_TZ} /etc/localtime
+validate "$?"
+
+_AA_CMD="Sync: Hardware Clock"
+/usr/bin/arch-chroot /mnt hwclock --systohc
+validate "$?"
+
+_AA_CMD="Modify: /etc/locale.gen"
+/usr/bin/sed -i 's/^#en_US\.UTF/en_US\.UTF/' /mnt/etc/locale.gen >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Generate: Locale"
+/usr/bin/arch-chroot /mnt locale-gen >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Modify: /etc/locale.conf"
+echo "LANG=en_US.UTF-8" > /mnt/etc/locale.conf
+validate "$?"
+
+printf "\\n"
+# }}}
+# Config: Security Defaults {{{
+desc "Config: [0mSecurity Defaults"
+_AA_CMD="Modify: Root \$EDITOR"
+echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc
+validate "$?"
+
+_AA_CMD="Permissions: /bin/su"
+/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su >/dev/null 2>&1
+/usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su-l >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Permissions: /boot, /root, /home/${AA_USERNAME}"
+/usr/bin/arch-chroot /mnt chmod -R go-rwx /root /home/kyau /boot
+validate "$?"
+
+_AA_CMD="Modify: Oldschool NIC Names"
 /usr/bin/ln -sf /dev/null /mnt/etc/udev/rules.d/80-net-setup-link.rules
 validate "$?"
 
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
-		desc "Set: Auto-login ${AA_USERNAME}"
+		_AA_CMD="Set: Auto-login ${AA_USERNAME}"
 		/usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d/
 		/usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/override.conf << EOF
 [Service]
@@ -580,7 +684,11 @@ EOF
 	fi
 fi
 
-desc "Config: eth0"
+printf "\\n"
+# }}}
+# Config: Networking {{{
+desc "Config: [0mNetworking"
+_AA_CMD="Config: eth0"
 _NIC="[Match]\nName=eth0\n\n[Network]\n"
 _DNS=""
 if [ -z "${AA_DNS}" ] || [ "${AA_DNS^^}" = "CLOUDFLARE" ]; then
@@ -609,100 +717,96 @@ echo -e "${_NIC}" > /mnt/etc/systemd/network/eth0.network
 validate "$?"
 
 if [ -n "${AA_WIFI_SSID}" ]; then
-	desc "Create: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
+	_AA_CMD="Create: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
 	/usr/bin/arch-chroot /mnt /usr/bin/wpa_passphrase ${AA_WIFI_SSID} ${AA_WIFI_PASSWD} > /mnt/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
 	validate "$?"
 
-	desc "Config: wlan0"
+	_AA_CMD="Config: wlan0"
 	echo -e "[Match]\nName=wlan0\n\n[Network]\nDHCP=ipv4\n${_DNS}\nNTP=pool.ntp.org\n[Address]\nLabel=archlinux" > /mnt/etc/systemd/network/wlan0.network
 	validate "$?"
 
-	desc "Systemd: Enable (wpa_supplicant@wlan0.service)"
+	_AA_CMD="Systemd: Enable (wpa_supplicant@wlan0.service)"
 	/usr/bin/arch-chroot /mnt systemctl enable wpa_supplicant@wlan0.service >/dev/null 2>&1
 	validate "$?"
 fi
 
-desc "Modify: /etc/pacman.conf"
-/usr/bin/sed -i 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
-validate "$?"
-
-desc "Modify: /etc/hostname"
+_AA_CMD="Modify: /etc/hostname"
 echo -e "${AA_HOSTNAME}" > /mnt/etc/hostname
 validate "$?"
 
-desc "Modify: /etc/hosts"
+_AA_CMD="Modify: /etc/hosts"
 echo -e "127.0.0.1\t${AA_HOST}.localhost.localdomain\t${AA_HOST}\n127.0.0.1\tlocalhost" >> /mnt/etc/hosts
 validate "$?"
 
-desc "Symlink: /etc/localtime"
-/usr/bin/arch-chroot /mnt ln -sf /usr/share/zoneinfo/${AA_TZ} /etc/localtime
+_AA_CMD="Systemd: Enable (systemd-networkd.service)"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd.service >/dev/null 2>&1
 validate "$?"
 
-desc "Sync: Clock"
-/usr/bin/arch-chroot /mnt hwclock --systohc
+_AA_CMD="Systemd: Enable (systemd-resolved.service)"
+/usr/bin/arch-chroot /mnt systemctl enable systemd-resolved.service >/dev/null 2>&1
 validate "$?"
 
-desc "Modify: /etc/locale.gen"
-/usr/bin/sed -i 's/^#en_US\.UTF/en_US\.UTF/' /mnt/etc/locale.gen >/dev/null 2>&1
+printf "\\n"
+# }}}
+# Config: Package Defaults {{{
+desc "Config: [0mPackage Defaults"
+_AA_CMD="Modify: /etc/pacman.conf"
+/usr/bin/sed -i 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
 validate "$?"
 
-desc "Generate: Locale"
-/usr/bin/arch-chroot /mnt locale-gen >/dev/null 2>&1
-validate "$?"
-
-desc "Modify: /etc/locale.conf"
-echo "LANG=en_US.UTF-8" > /mnt/etc/locale.conf
-validate "$?"
-
-desc "Modify: /etc/pacman.d/mirrorlist"
+_AA_CMD="Modify: /etc/pacman.d/mirrorlist"
 /usr/bin/arch-chroot /mnt reflector --latest 100 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
 validate "$?"
 
-desc "Download: AUR Helper (pikaur)"
+_AA_CMD="Download: AUR Helper (pikaur)"
 /usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'git clone https://aur.archlinux.org/pikaur.git' >/dev/null 2>&1
 validate "$?"
 
-desc "Compile: AUR Helper (pikaur)"
+_AA_CMD="Compile: AUR Helper (pikaur)"
 /usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'cd pikaur && makepkg -fsr --noconfirm' >/dev/null 2>&1
 validate "$?"
 
-desc "Install: AUR Helper (pikaur)"
+_AA_CMD="Install: AUR Helper (pikaur)"
 T_PIKAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/pikaur/ | /usr/bin/grep .tar.xz)
 /usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/pikaur/${T_PIKAUR}" --noconfirm >/dev/null 2>&1
 validate "$?"
 
-desc "Remove: AUR Helper Source"
+_AA_CMD="Remove: AUR Helper Source"
 /usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'rm -rf pikaur'
 validate "$?"
 
 if [ -n "${AA_TFAN_CONFIG}" ]; then
-	desc "Download: Thinkfan (AUR)"
+	_AA_CMD="Download: Thinkfan (AUR)"
 	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'git clone https://aur.archlinux.org/thinkfan-git.git' >/dev/null 2>&1
 	validate "$?"
 
-	desc "Compile: Thinkfan (AUR)"
+	_AA_CMD="Compile: Thinkfan (AUR)"
 	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'cd thinkfan-git && makepkg -fsr --noconfirm' >/dev/null 2>&1
 	validate "$?"
 
-	desc "Install: Thinkfan (AUR)"
+	_AA_CMD="Install: Thinkfan (AUR)"
 	T_THINKFAN=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/thinkfan-git/ | /usr/bin/grep .tar.xz)
 	/usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/thinkfan-git/${T_THINKFAN}" --noconfirm >/dev/null 2>&1
 	validate "$?"
 
-	desc "Remove: Thinkfan Source"
+	_AA_CMD="Remove: Thinkfan Source"
 	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'rm -rf thinkfan-git'
 	validate "$?"
 
-	desc "Remove: Thinkfan Build Depends"
+	_AA_CMD="Remove: Thinkfan Build Depends"
 	/usr/bin/arch-chroot /mnt pacman -Rs boost --noconfirm >/dev/null 2>&1
 	validate "$?"
 fi
 
-desc "Modify: /etc/makepkg.conf"
+_AA_CMD="Modify: /etc/makepkg.conf"
 /usr/bin/sed -i 's/^#BUILDDIR/BUILDDIR/' /mnt/etc/makepkg.conf
 validate "$?"
 
-desc "Systemd: Keep Boot Mesages"
+printf "\\n"
+# }}}
+# Config: Service Defaults {{{
+desc "Config: [0mService Defaults"
+_AA_CMD="Systemd: Keep Boot Mesages"
 /usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d
 /usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
 [Service]
@@ -710,7 +814,7 @@ TTYVTDisallocate=no
 EOF
 validate "$?"
 
-desc "Systemd: Turn Numlock On"
+_AA_CMD="Systemd: Turn Numlock On"
 /usr/bin/mkdir -p /mnt/etc/systemd/system/getty@.service.d
 /usr/bin/cat > /mnt/etc/systemd/system/getty@.service.d/numlock.conf << EOF
 [Service]
@@ -718,31 +822,58 @@ ExecStartPre=/bin/sh -c 'setleds -D +num < /dev/%I'
 EOF
 validate "$?"
 
-desc "Modify: /etc/systemd/timesyncd.conf"
+_AA_CMD="Modify: /etc/systemd/timesyncd.conf"
 /usr/bin/cat >> /mnt/etc/systemd/timesyncd.conf << EOF
 NTP=0.arch.pool.ntp.org 1.arch.pool.ntp.org 2.arch.pool.ntp.org 3.arch.pool.ntp.org
 FallbackNTP=0.pool.ntp.org 1.pool.ntp.org 0.us.pool.ntp.org
 EOF
 validate "$?"
 
-desc "Systemd: Enable (systemd-networkd.service)"
-/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd.service >/dev/null 2>&1
-validate "$?"
-
-desc "Systemd: Enable (systemd-resolved.service)"
-/usr/bin/arch-chroot /mnt systemctl enable systemd-resolved.service >/dev/null 2>&1
-validate "$?"
-
-desc "Systemd: Enable (systemd-timesyncd.service)"
+_AA_CMD="Systemd: Enable (systemd-timesyncd.service)"
 /usr/bin/arch-chroot /mnt systemctl enable systemd-timesyncd.service >/dev/null 2>&1
 validate "$?"
 
-desc "Systemd: Enable (sshd.socket)"
+if [ -n "${AA_TLP_CONFIG}" ]; then
+	_AA_CMD="Systemd: Enable (tlp.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable tlp.service >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Systemd: Enable (tlp-sleep.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable tlp-sleep.service >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Systemd: Mask (systemd-rfkill.service)"
+	/usr/bin/arch-chroot /mnt systemctl mask systemd-rfkill.service >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Systemd: Mask (systemd-rfkill.socket)"
+	/usr/bin/arch-chroot /mnt systemctl mask systemd-rfkill.socket >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Download: /etc/defaults/tlp"
+	/usr/bin/wget ${AA_TLP_CONFIG} -O /mnt/etc/default/tlp >/dev/null 2>&1
+	validate "$?"
+fi
+
+if [ -n "${AA_TFAN_CONFIG}" ]; then
+	_AA_CMD="Download: /etc/thinkpad.conf"
+	/usr/bin/wget ${AA_TFAN_CONFIG} -O /mnt/etc/thinkfan.conf >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Systemd: Enable (thinkfan.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable thinkfan.service >/dev/null 2>&1
+	validate "$?"
+fi
+
+printf "\\n"
+# }}}
+# Config: SSH Defaults {{{
+desc "Config: [0mSSH Defaults"
+_AA_CMD="Systemd: Enable (sshd.socket)"
 /usr/bin/arch-chroot /mnt systemctl enable sshd.socket >/dev/null 2>&1
 validate "$?"
-# }}}
-# Install: Security {{{
-desc "Create: /etc/ssh/sshd_config"
+
+_AA_CMD="Create: /etc/ssh/sshd_config"
 /usr/bin/cat > /mnt/etc/ssh/sshd_config << EOF
 # \$KYAULabs: sshd_config,v 1.000 2019/07/26 14:18:25 kyau Exp \$
 
@@ -769,15 +900,15 @@ EOF
 #/usr/bin/wget ${AA_SSHD_CONFIG} -O /mnt/etc/ssh/sshd_config >/dev/null 2>&1
 validate "$?"
 
-desc "Create: ~/.ssh/"
+_AA_CMD="Create: ~/.ssh/"
 /usr/bin/mkdir -p /mnt/home/${AA_USERNAME}/.ssh/
 validate "$?"
 
-desc "Download: ~/.ssh/authorized_keys"
+_AA_CMD="Download: ~/.ssh/authorized_keys"
 /usr/bin/wget ${AA_SSH_KEY} -O /mnt/home/${AA_USERNAME}/.ssh/authorized_keys >/dev/null 2>&1
 validate "$?"
 
-desc "Create: /etc/ssh/ssh_config"
+_AA_CMD="Create: /etc/ssh/ssh_config"
 /usr/bin/cat > /mnt/etc/ssh/ssh_config << EOF
 # \$KYAULabs: ssh_config,v 1.000 2019/07/26 23:27:33 kyau Exp \$
 
@@ -799,34 +930,24 @@ EOF
 #/usr/bin/wget ${AA_SSH_CONFIG} -O /mnt/home/${AA_USERNAME}/.ssh/config >/dev/null 2>&1
 validate "$?"
 
-desc "Permissions: ~/.ssh/"
+_AA_CMD="Permissions: ~/.ssh/"
 /usr/bin/arch-chroot /mnt chown -R ${AA_USERNAME}:${AA_USERNAME} /home/${AA_USERNAME}/.ssh/
 /usr/bin/arch-chroot /mnt chmod -R go-rwx /home/${AA_USERNAME}/.ssh/
 validate "$?"
 
-desc "Create: /etc/ssh/moduli"
+_AA_CMD="Create: /etc/ssh/moduli"
 /usr/bin/cp -f moduli /mnt/etc/ssh/moduli >/dev/null 2>&1
 validate "$?"
 
-desc "SSH: Host Key (Ed25519)"
+_AA_CMD="SSH: Host Key (Ed25519)"
 /usr/bin/ssh-keygen -t ed25519 -f /mnt/etc/ssh/ssh_host_ed25519_key -N "" < /dev/null >/dev/null 2>&1
 validate "$?"
 
-desc "SSH: Host Key (RSA 4096)"
+_AA_CMD="SSH: Host Key (RSA 4096)"
 /usr/bin/ssh-keygen -t rsa -b 4096 -f /mnt/etc/ssh/ssh_host_rsa_key -N "" < /dev/null >/dev/null 2>&1
 validate "$?"
 
-desc "Groupadd: ssh"
-/usr/bin/arch-chroot /mnt groupadd ssh
-/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} ssh >/dev/null 2>&1
-validate "$?"
-
-desc "Groupadd: shm"
-/usr/bin/arch-chroot /mnt groupadd shm
-/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} shm >/dev/null 2>&1
-validate "$?"
-
-desc "Modify: /etc/nftables.conf"
+_AA_CMD="Modify: /etc/nftables.conf"
 /usr/bin/cat > /mnt/etc/nftables.conf << EOF
 #!/usr/bin/nft -f
 #
@@ -889,87 +1010,72 @@ table inet filter {
 EOF
 validate "$?"
 
-desc "Systemd: Enable (nftables.service)"
+_AA_CMD="Systemd: Enable (nftables.service)"
 /usr/bin/arch-chroot /mnt systemctl enable nftables.service >/dev/null 2>&1
 validate "$?"
 
-desc "Create: /etc/sudoers.d/kyaulabs"
-/usr/bin/cat > /mnt/etc/sudoers.d/kyaulabs << EOF
-Defaults editor=/usr/bin/rvim
-Defaults env_keep += "SSH_AUTH_SOCK"
-%wheel ALL=(ALL) ALL
-ALL ALL=(ALL) /usr/sbin/checkupdates
-EOF
-validate "$?"
-
-if [ -n "${AA_TLP_CONFIG}" ]; then
-	desc "Systemd: Enable (tlp.service)"
-	/usr/bin/arch-chroot /mnt systemctl enable tlp.service >/dev/null 2>&1
-	validate "$?"
-
-	desc "Systemd: Enable (tlp-sleep.service)"
-	/usr/bin/arch-chroot /mnt systemctl enable tlp-sleep.service >/dev/null 2>&1
-	validate "$?"
-
-	desc "Systemd: Mask (systemd-rfkill.service)"
-	/usr/bin/arch-chroot /mnt systemctl mask systemd-rfkill.service >/dev/null 2>&1
-	validate "$?"
-
-	desc "Systemd: Mask (systemd-rfkill.socket)"
-	/usr/bin/arch-chroot /mnt systemctl mask systemd-rfkill.socket >/dev/null 2>&1
-	validate "$?"
-
-	desc "Download: /etc/defaults/tlp"
-	/usr/bin/wget ${AA_TLP_CONFIG} -O /mnt/etc/default/tlp >/dev/null 2>&1
-	validate "$?"
-fi
-
-if [ -n "${AA_TFAN_CONFIG}" ]; then
-	desc "Download: /etc/thinkpad.conf"
-	/usr/bin/wget ${AA_TFAN_CONFIG} -O /mnt/etc/thinkfan.conf >/dev/null 2>&1
-	validate "$?"
-
-	desc "Systemd: Enable (thinkfan.service)"
-	/usr/bin/arch-chroot /mnt systemctl enable thinkfan.service >/dev/null 2>&1
-	validate "$?"
-fi
+printf "\\n"
 # }}}
-# Post-Install {{{
-desc "Create: /etc/systemd/system/firstboot.service"
+# Post-Install: First Boot Script {{{
+desc "Post-Install: [0mFirst Boot Script"
+_AA_CMD="Create: /etc/systemd/system/firstboot.service"
 /usr/bin/cat > /mnt/etc/systemd/system/firstboot.service << EOF
 [Unit]
-Description=First Boot
+Description=AARCH: First Boot
+Wants=nss-lookup.target
+After=nss-lookup.target
 
 [Service]
-ExecStart=/root/firstboot
+ExecStartPre=/bin/sleep 15
+ExecStart=/root/firstboot > /root/firstboot.log
 
 [Install]
 WantedBy=multi-user.target
 EOF
 validate "$?"
 
-desc "Create: /root/firstboot"
+_AA_CMD="Create: /root/firstboot"
 /usr/bin/cat > /mnt/root/firstboot << EOF
 #!/bin/sh
-sensors-detect
 timedatectl set-ntp true
 localectl set-locale LANG=en_US.UTF-8
-systemctl disable firstboot.service
+EOF
+if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
+	echo "sensors-detect --auto" >> /mnt/root/firstboot
+fi
+if [ -f /root/firstboot.txt ]; then
+	/usr/bin/cat /root/firstboot.txt >> /mnt/root/firstboot
+fi
+if [ -n "${AA_TFAN_CONFIG}" ]; then
+	echo "pacman -Rs boost cmake" >> /mnt/root/firstboot
+fi
+/usr/bin/cat >> /mnt/root/firstboot << EOF
+runuser -l ${AA_USERNAME} -c 'git clone https://github.com/kyau/dotfiles.git > ~/firstboot.log'
+runuser -l ${AA_USERNAME} -c '/usr/bin/bash /home/${AA_USERNAME}/dotfiles/dotme -ip ${AA_MACHINEROLE,,} >> ~/firstboot.log'
+runuser -l ${AA_USERNAME} -c 'rm -rf ~/dotfiles >> ~/firstboot.log'
+runuser -l ${AA_USERNAME} -c 'curl https://git.io/fisher --create-dirs -sLo ~/.config/fish/functions/fisher.fish >> ~/firstboot.log'
+runuser -l ${AA_USERNAME} -c 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm >> ~/firstboot.log'
+runuser -l ${AA_USERNAME} -c 'git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim >> ~/firstboot.log'
+chsh -s /usr/bin/fish ${AA_USERNAME} >> /home/${AA_USERNAME}/firstboot.log
+runuser -l ${AA_USERNAME} -c 'fisher >> ~/firstboot.log'
+systemctl disable firstboot.service >> /home/${AA_USERNAME}/firstboot.log
 rm /etc/systemd/system/firstboot.service
 rm /root/firstboot
+echo "--First Boot COMPLETE!" >> /home/${AA_USERNAME}/firstboot.log
 EOF
 validate "$?"
 
-desc "Permissions: /root/firstboot"
+_AA_CMD="Permissions: /root/firstboot"
 /usr/bin/chmod 755 /mnt/root/firstboot
 validate "$?"
 
-desc "Systemd: Enable (firstboot.service)"
+_AA_CMD="Systemd: Enable (firstboot.service)"
 /usr/bin/arch-chroot /mnt systemctl enable firstboot >/dev/null 2>&1
 validate "$?"
 
-printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m umount -R /mnt\\n"
-printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m systemctl reboot\\n\\n"
+printf "\\n"
 # }}}
+printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m sync; umount -R /mnt\\n"
+printf "\\tEject the installation medium and reboot the machine\\n\\n"
 
 # vim: ft=sh sts=4 sw=4 ts=4 noet:
