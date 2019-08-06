@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.3.0 2019/08/03 21:16:13 kyau Exp $
+# $KYAULabs: aarch,v 2.3.9 2019/08/06 14:02:38 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -41,7 +41,7 @@ function print_logo() {
 	printf "  \e[0;38;5;8m- KYAU Labs Edition\\n\\n"
 }
 function desc() {
-	>&2 printf "\\x1b[38;5;6m\\u25ab\\u25aa \\x1b[38;5;252m%s\\x1b[0m " "${1}"
+	>&2 printf "\\x1b[0;36m\\u25ab\\x1b[1;36m\\u25aa \\x1b[1;37m%s\\x1b[0m" "${1}"
 }
 function validate() {
 	# if failure else success
@@ -88,7 +88,7 @@ if [ -z ${AA_ENCRYPT+x} ]; then
 fi
 # Xorg
 if [ -z ${AA_XORG+x} ]; then
-	printf "Xorg (0/1) [default: 0]: "
+	printf "Xorg (0-2) [default: 0]: "
 	read -r AA_XORG
 	if [ -z "$AA_XORG" ]; then
 		AA_XORG=0
@@ -113,6 +113,14 @@ if [ -z ${AA_HOSTNAME+x} ]; then
 else
 	AA_HOST=${AA_HOSTNAME%%.*}
 fi
+# Timezone
+if [ -z ${AA_TZ+x} ]; then
+	printf "Timezone [default: America/Los_Angeles]: "
+	read -r AA_TZ
+	if [ -z "$AA_TZ" ]; then
+		AA_TZ="America/Los_Angeles"
+	fi
+fi
 # Swap
 if [ -z ${AA_SWAP+x} ]; then
 	printf "Swap Size (in GB) [default: 4]: "
@@ -121,20 +129,20 @@ if [ -z ${AA_SWAP+x} ]; then
 		AA_SWAP="4"
 	fi
 fi
-# Root Password
-if [ -z ${AA_PASSWD+x} ]; then
-	printf "Root/User password [default: moo]: "
-	read -r AA_PASSWD
-	if [ -z "$AA_PASSWD" ]; then
-		AA_PASSWD="moo"
-	fi
-fi
 # Username
 if [ -z ${AA_USERNAME+x} ]; then
 	printf "Username [default: kyau]: "
 	read -r AA_USERNAME
 	if [ -z "$AA_USERNAME" ]; then
 		AA_USERNAME="kyau"
+	fi
+fi
+# Root Password
+if [ -z ${AA_PASSWD+x} ]; then
+	printf "Root/User password [default: moo]: "
+	read -r AA_PASSWD
+	if [ -z "$AA_PASSWD" ]; then
+		AA_PASSWD="moo"
 	fi
 fi
 # SSID
@@ -155,34 +163,25 @@ if [ -z ${AA_WIFI_PASSWD+x} ]; then
 fi
 # IP Address
 if [ -z ${AA_IPADDR+x} ]; then
-	printf "IP Address [default: 10.0.42.40]: "
+	printf "IP Address (DHCP if Blank): "
 	read -r AA_IPADDR
-	if [ -z "$AA_IPADDR" ]; then
-		AA_IPADDR="10.0.42.40"
-	fi
 fi
-# Gateway
-if [ -z ${AA_GATEWAY+x} ]; then
-	printf "Gateway [default: 10.0.42.1]: "
-	read -r AA_GATEWAY
-	if [ -z "$AA_GATEWAY" ]; then
-		AA_GATEWAY="10.0.42.1"
+if [ ! -z "$AA_IPADDR" ]; then
+	# Gateway
+	if [ -z ${AA_GATEWAY+x} ]; then
+		printf "Gateway [default: 10.0.42.1]: "
+		read -r AA_GATEWAY
+		if [ -z "$AA_GATEWAY" ]; then
+			AA_GATEWAY="10.0.42.1"
+		fi
 	fi
-fi
-# DNS
-if [ -z ${AA_DNS+x} ]; then
-	printf "DNS [default: 1.1.1.1]: "
-	read -r AA_DNS
-	if [ -z "$AA_DNS" ]; then
-		AA_DNS="1.1.1.1"
-	fi
-fi
-# Timezone
-if [ -z ${AA_TZ+x} ]; then
-	printf "Timezone [default: America/Los_Angeles]: "
-	read -r AA_TZ
-	if [ -z "$AA_TZ" ]; then
-		AA_TZ="America/Los_Angeles"
+	# DNS
+	if [ -z ${AA_DNS+x} ]; then
+		printf "DNS [default: 1.1.1.1]: "
+		read -r AA_DNS
+		if [ -z "$AA_DNS" ]; then
+			AA_DNS="1.1.1.1"
+		fi
 	fi
 fi
 # SSH Key
@@ -193,25 +192,12 @@ if [ -z ${AA_SSH_KEY+x} ]; then
 		AA_SSH_KEY="https://raw.githubusercontent.com/kyau/dotfiles/master/ssh/authorized_keys"
 	fi
 fi
-# Thinkfan Config
-if [ -z ${AA_TFAN_CONFIG+x} ]; then
-	printf "Thinkfan Config [default: https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/thinkfan.conf]: "
-	read -r AA_TFAN_CONFIG
-	if [ -z "$AA_TFAN_CONFIG" ]; then
-		AA_TFAN_CONFIG="https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/thinkfan.conf"
-	fi
-fi
-# TLP Config
-if [ -z ${AA_TLP_CONFIG+x} ]; then
-	printf "TLP Config [default: https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/default/tlp]: "
-	read -r AA_TLP_CONFIG
-	if [ -z "$AA_TLP_CONFIG" ]; then
-		AA_TLP_CONFIG="https://raw.githubusercontent.com/kyau/dotfiles/master/system/etc/default/tlp"
-	fi
-fi
 # Set Hidden Variables
 if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	AA_UCODE=""
+fi
+if [ -z "${AA_PKGMAN}" ]; then
+	AA_PKGMAN="pikaur"
 fi
 # }}}
 # Variables: Summary {{{
@@ -387,7 +373,7 @@ printf "\\n"
 # }}}
 # Installation {{{
 desc "Installation"
-_PACSTRAP=(base base-devel bc bind-tools colordiff dateutils efibootmgr fish gptfdisk git htop iotop lvm2 nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo unrar unzip vim zip)
+_PACSTRAP=(base base-devel bc bind-tools colordiff dateutils efibootmgr fish gptfdisk git htop iotop lvm2 nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo tmux unrar unzip vim zip)
 if [ "${AA_UCODE^^}" = "INTEL" ]; then
 	_PACSTRAP+=(i7z intel-ucode)
 elif [ "${AA_UCODE^^}" = "AMD" ]; then
@@ -443,7 +429,7 @@ echo -e "tmpfs\t/dev/shm\ttmpfs\trw,nodev,nosuid,noexec,size=1024M,mode=1770,uid
 validate "$?"
 
 _AA_CMD="Fstab: Secure /tmp"
-echo -e "tmpfs\t/tmp\ttmpfs\trw,noatime,nodev,nosuid,mode=1777\t0\t0" >> /mnt/etc/fstab
+echo -e "tmpfs\t/tmp\ttmpfs\trw,noatime,nodev,nosuid,size=8192M,mode=1777\t0\t0" >> /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /var/tmp"
@@ -758,21 +744,21 @@ _AA_CMD="Modify: /etc/pacman.d/mirrorlist"
 /usr/bin/arch-chroot /mnt reflector --latest 100 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
 validate "$?"
 
-_AA_CMD="Download: AUR Helper (pikaur)"
-/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'git clone https://aur.archlinux.org/pikaur.git' >/dev/null 2>&1
+_AA_CMD="Download: AUR Helper (${AA_PKGMAN})"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c "git clone https://aur.archlinux.org/${AA_PKGMAN}.git" >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Compile: AUR Helper (pikaur)"
-/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'cd pikaur && makepkg -fsr --noconfirm' >/dev/null 2>&1
+_AA_CMD="Compile: AUR Helper (${AA_PKGMAN})"
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c "cd ${AA_PKGMAN} && makepkg -fsr --noconfirm" >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Install: AUR Helper (pikaur)"
-T_PIKAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/pikaur/ | /usr/bin/grep .tar.xz)
-/usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/pikaur/${T_PIKAUR}" --noconfirm >/dev/null 2>&1
+_AA_CMD="Install: AUR Helper (${AA_PKGMAN})"
+T_PKGAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/${AA_PKGMAN}/ | /usr/bin/grep .tar.xz)
+/usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/${AA_PKGMAN}/${T_PKGAUR}" --noconfirm >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Remove: AUR Helper Source"
-/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'rm -rf pikaur'
+/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c "rm -rf ${AA_PKGMAN}"
 validate "$?"
 
 if [ -n "${AA_TFAN_CONFIG}" ]; then
@@ -1027,7 +1013,9 @@ After=nss-lookup.target
 
 [Service]
 ExecStartPre=/bin/sleep 15
-ExecStart=/root/firstboot > /root/firstboot.log
+ExecStart=/root/firstboot
+StandardOutput=append:/root/firstboot.log
+StandardError=append:/root/firstboot.log
 
 [Install]
 WantedBy=multi-user.target
@@ -1036,32 +1024,48 @@ validate "$?"
 
 _AA_CMD="Create: /root/firstboot"
 /usr/bin/cat > /mnt/root/firstboot << EOF
-#!/bin/sh
+#!/usr/bin/env bash
+echo "-- AARCH: START --"
 timedatectl set-ntp true
 localectl set-locale LANG=en_US.UTF-8
+echo "-- AARCH: BOOTLOADER --"
+echo -e "${AA_USERNAME} ALL=(ALL) NOPASSWD: ALL\n" > /etc/sudoers.d/temporary
+mount -o remount,rw /boot
+mkdir -p /boot/EFI/tools
+curl -L https://github.com/tianocore/edk2/releases/latest/download/ShellBinPkg.zip -o ShellBinPkg.zip > /dev/null 2>&1
+unzip -qq ShellBinPkg.zip && cp ShellBinPkg/UefiShell/X64/Shell.efi /boot/EFI/tools/shellx64.efi && rm -rf /root/ShellBinPkg*
 EOF
 if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
-	echo "sensors-detect --auto" >> /mnt/root/firstboot
+	/usr/bin/cat >> /mnt/root/firstboot << EOF
+sensors-detect --auto
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S memtest86-efi --noedit --nodiff --noconfirm > /dev/null 2>&1" && cp /usr/share/memtest86-efi/bootx64.efi /boot/EFI/tools/memtest86.efi
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -Rs memtest86-efi --noconfirm > /dev/null 2>&1"
+EOF
 fi
 if [ -f /root/firstboot.txt ]; then
-	/usr/bin/cat /root/firstboot.txt >> /mnt/root/firstboot
+	# export all variables used in firstboot.txt
+	export AA_MACHINEROLE
+	export AA_USERNAME
+	export AA_PKGMAN
+	export AA_XORG
+	# import firstboot.txt and substitute needed variables
+	envsubst '${AA_MACHINEROLE} ${AA_USERNAME} ${AA_PKGMAN} ${AA_XORG}' < /root/firstboot.txt > /root/__aa__firstboot.txt
+	mapfile -t lines <"/root/__aa__firstboot.txt"
+	for line in "${lines[@]}"; do
+		if [ "${line:0:1}" = "#" ] || [ -z "${line}" ]; then continue; fi
+		echo "${line}" >> /mnt/root/firstboot
+	done
+	rm -f /root/__aa__firstboot.txt
 fi
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	echo "pacman -Rs boost cmake" >> /mnt/root/firstboot
 fi
 /usr/bin/cat >> /mnt/root/firstboot << EOF
-runuser -l ${AA_USERNAME} -c 'git clone https://github.com/kyau/dotfiles.git > ~/firstboot.log'
-runuser -l ${AA_USERNAME} -c '/usr/bin/bash /home/${AA_USERNAME}/dotfiles/dotme -ip ${AA_MACHINEROLE,,} >> ~/firstboot.log'
-runuser -l ${AA_USERNAME} -c 'rm -rf ~/dotfiles >> ~/firstboot.log'
-runuser -l ${AA_USERNAME} -c 'curl https://git.io/fisher --create-dirs -sLo ~/.config/fish/functions/fisher.fish >> ~/firstboot.log'
-runuser -l ${AA_USERNAME} -c 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm >> ~/firstboot.log'
-runuser -l ${AA_USERNAME} -c 'git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim >> ~/firstboot.log'
-chsh -s /usr/bin/fish ${AA_USERNAME} >> /home/${AA_USERNAME}/firstboot.log
-runuser -l ${AA_USERNAME} -c 'fisher >> ~/firstboot.log'
-systemctl disable firstboot.service >> /home/${AA_USERNAME}/firstboot.log
-rm /etc/systemd/system/firstboot.service
-rm /root/firstboot
-echo "--First Boot COMPLETE!" >> /home/${AA_USERNAME}/firstboot.log
+rm -f /etc/sudoers.d/temporary
+rm -f /root/firstboot
+echo "-- AARCH: END --"
+systemctl disable firstboot.service
+rm -f /etc/systemd/system/firstboot.service
 EOF
 validate "$?"
 
@@ -1073,9 +1077,9 @@ _AA_CMD="Systemd: Enable (firstboot.service)"
 /usr/bin/arch-chroot /mnt systemctl enable firstboot >/dev/null 2>&1
 validate "$?"
 
-printf "\\n"
+printf "\\n\\n"
 # }}}
-printf "\\t\\x1b[38;5;235m#\\x1b[38;5;244m sync; umount -R /mnt\\n"
-printf "\\tEject the installation medium and reboot the machine\\n\\n"
+printf "\\t\\x1b[38;5;235m#\\x1b[0;31m sync; umount -R /mnt\\n\\n"
+printf "\\x1b[1;30mEject installation medium and reboot\\x1b[0m\\n\\n"
 
 # vim: ft=sh sts=4 sw=4 ts=4 noet:

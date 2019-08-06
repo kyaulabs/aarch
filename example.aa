@@ -1,4 +1,4 @@
-# $KYAULabs: example.aa,v 2.014 2019/07/28 15:43:25 kyau Exp $
+# $KYAULabs: example.aa,v 2.2.0 2019/08/05 20:08:57 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -44,6 +44,7 @@ AA_GATEWAY="10.0.42.1"			# Gateway for eth0 (Ignored if IPADDR is Blank)
 AA_DNS="10.0.42.42"				# DNS (cloudflare, google, neustar, opendns, or 
 								# a custom ip)
 AA_DOMAINS=("wa.kyaulabs.com" "kyaulabs.com")	# DNS Search Domains (Ignored if Blank)
+AA_PKGMAN="pikaur"				# AUR Helper (supports pacman syntax only)
 
 # User Public Key
 AA_SSH_KEY="https://raw.githubusercontent.com/kyau/dotfiles/master/ssh/authorized_keys"

@@ -1,0 +1,42 @@
+# $KYAULabs: firstboot.txt,v 1.0.8 2019/08/06 14:02:53 kyau Exp $
+
+echo "-- AARCH: FISH SHELL --"
+# change users default shell to fish
+chsh -s /usr/bin/fish "${AA_USERNAME}"
+# fetch dotfiles from github and run script to setup symlinks
+runuser -l "${AA_USERNAME}" -c 'git clone https://github.com/kyau/dotfiles.git'
+_ADD=
+if [ "${AA_XORG}" -ne "0" ]; then
+	_ADD="x"
+fi
+runuser -l "${AA_USERNAME}" -c "/usr/bin/bash /home/${AA_USERNAME}/dotfiles/dotme -${_ADD}p ${AA_MACHINEROLE}"
+runuser -l "${AA_USERNAME}" -c 'rm -rf ~/dotfiles'
+# download fisher package manager for fish
+runuser -l "${AA_USERNAME}" -c 'curl https://git.io/fisher --create-dirs -sLo ~/.config/fish/functions/fisher.fish'
+# download tpm package manager for tmux
+runuser -l "${AA_USERNAME}" -c 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm'
+# download Vundle package manager for vim
+runuser -l "${AA_USERNAME}" -c 'git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim'
+# run fisher to download default packages
+runuser -l "${AA_USERNAME}" -c 'fisher'
+# read from arch package file and install all needed packages
+#
+# this will execute '${AA_PKGMAN} -S <name>' on every package listed in the file
+# pertaining to the role you selected in your template. (eg. ~/dot/.pkg-vm)
+echo "-- AARCH: PACKAGES --"
+mapfile -t lines <"/home/${AA_USERNAME}/dot/.pkg-${AA_MACHINEROLE}"
+if [ ${#lines[@]} -eq 0 ]; then
+	printf "No packages detected~\\n"
+else
+	for pkg in "${lines[@]}"; do
+		# if imported line is a comment or blank, skip
+		if [ "${pkg:0:1}" = "#" ] || [ -z "${pkg}" ]; then continue; fi
+		if ${AA_PKGMAN} -S "${pkg}" --noedit --nodiff --noconfirm > /dev/null 2>&1; then
+			printf "%s: installed via ${AA_PKGMAN}.\\n" "${pkg}"
+		else
+			printf "! %s: failed to install.\\n" "${pkg}"
+		fi
+	done
+fi
+
+# vim: ft=bash sts=4 sw=4 ts=4 noet:
