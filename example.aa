@@ -27,7 +27,7 @@
 # autoarch script when run
 
 AA_MACHINEROLE="vm"				# Machine Role [desktop/laptop/server/vm]
-AA_ENCRYPT=0					# Full Disk Encrypt [0=False/1=True]
+AA_ENCRYPT=1					# Full Disk Encrypt [0=False/1=True]
 AA_UCODE="intel"				# CPU microcode [amd/intel]
 AA_XORG=0						# Xorg	[0=False/1=QXL]				(vm)
 								#		[0=False/1=Intel/2=NVIDIA]	(*)

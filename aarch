@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.3.9 2019/08/06 14:02:38 kyau Exp $
+# $KYAULabs: aarch,v 2.4.0 2019/08/18 16:09:57 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -166,7 +166,7 @@ if [ -z ${AA_IPADDR+x} ]; then
 	printf "IP Address (DHCP if Blank): "
 	read -r AA_IPADDR
 fi
-if [ ! -z "$AA_IPADDR" ]; then
+if [ -n "$AA_IPADDR" ]; then
 	# Gateway
 	if [ -z ${AA_GATEWAY+x} ]; then
 		printf "Gateway [default: 10.0.42.1]: "
@@ -330,12 +330,56 @@ fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-swap)"
-/usr/bin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
+/usr/bin/lvcreate -L 1G ${AA_HOST} --name swap >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-root)"
-/usr/bin/lvcreate --yes -l +100%FREE ${AA_HOST} --name root >/dev/null 2>&1
+/usr/bin/lvcreate -L 512M ${AA_HOST} --name root >/dev/null 2>&1
 validate "$?"
+
+_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-usr)"
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	/usr/bin/lvcreate -L 5G ${AA_HOST} --name usr >/dev/null 2>&1
+elif [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	/usr/bin/lvcreate -L 4G ${AA_HOST} --name usr >/dev/null 2>&1
+else
+	/usr/bin/lvcreate -L 8G ${AA_HOST} --name usr >/dev/null 2>&1
+fi
+validate "$?"
+
+_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var)"
+/usr/bin/lvcreate -L 512M ${AA_HOST} --name var >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_cache)"
+if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	/usr/bin/lvcreate -L 1G ${AA_HOST} --name var_cache >/dev/null 2>&1
+else
+	/usr/bin/lvcreate -L 2G ${AA_HOST} --name var_cache >/dev/null 2>&1
+fi
+validate "$?"
+
+_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log)"
+/usr/bin/lvcreate -L 512M ${AA_HOST} --name var_log >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log_audit)"
+/usr/bin/lvcreate -L 512M ${AA_HOST} --name var_log_audit >/dev/null 2>&1
+validate "$?"
+
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
+	/usr/bin/lvcreate -L 512M ${AA_HOST} --name home >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-srv)"
+	/usr/bin/lvcreate --yes -l +100%FREE ${AA_HOST} --name srv >/dev/null 2>&1
+	validate "$?"
+else
+	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
+	/usr/bin/lvcreate --yes -l +100%FREE ${AA_HOST} --name home >/dev/null 2>&1
+	validate "$?"
+fi
 
 printf "\\n"
 # }}}
@@ -344,6 +388,36 @@ desc "Prereq: [0mFilesystems"
 _AA_CMD="Format: Ext4 (${AA_HOST}-root)"
 /usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-root >/dev/null 2>&1
 validate "$?"
+
+_AA_CMD="Format: Ext4 (${AA_HOST}-usr)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-usr >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Format: Ext4 (${AA_HOST}-var)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Format: Ext4 (${AA_HOST}-var_cache)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var_cache >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Format: Ext4 (${AA_HOST}-var_log)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var_log >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Format: Ext4 (${AA_HOST}-var_log_audit)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var_log_audit >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Format: Ext4 (${AA_HOST}-home)"
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-home >/dev/null 2>&1
+validate "$?"
+
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_AA_CMD="Format: Ext4 (${AA_HOST}-srv)"
+	/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-srv >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="Format: FAT32 (${AA_DISK}2)"
 /usr/bin/mkfs.fat -F32 ${AA_DISK}2 >/dev/null 2>&1
@@ -357,30 +431,89 @@ _AA_CMD="Swap: Enable"
 /usr/bin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Mount: $(echo ${AA_HOST} | awk '{print toupper($0)}') => /mnt"
-/usr/bin/mount /dev/mapper/${AA_HOST}-root /mnt >/dev/null 2>&1
+_AA_CMD="Mount: ${AA_HOST}-root => /mnt"
+/usr/bin/mount -o defaults,noatime,journal_checksum /dev/mapper/${AA_HOST}-root /mnt >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Create Directory: /boot"
-/usr/bin/mkdir /mnt/boot >/dev/null 2>&1
+_AA_CMD="Create Directory Structure"
+_ADD_DIR=""
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_ADD_DIR="/mnt/srv"
+fi
+/usr/bin/mkdir -p /mnt/boot /mnt/home /mnt/usr /mnt/var ${_ADD_DIR} >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: UEFI => /mnt/boot"
 /usr/bin/mount ${AA_DISK}2 /mnt/boot >/dev/null 2>&1
 validate "$?"
 
+_AA_CMD="Mount: ${AA_HOST}-home => /mnt/home"
+/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/mapper/${AA_HOST}-home /mnt/home >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Mount: ${AA_HOST}-usr => /mnt/usr"
+/usr/bin/mount -o defaults,noatime,journal_checksum /dev/mapper/${AA_HOST}-usr /mnt/usr >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Mount: ${AA_HOST}-var => /mnt/var"
+/usr/bin/mount -o defaults,noatime,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var /mnt/var >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Create Directory Structure: /var"
+/usr/bin/mkdir -p /mnt/var/cache /mnt/var/log >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Mount: ${AA_HOST}-var_cache => /mnt/var/cache"
+/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var_cache /mnt/var/cache >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Mount: ${AA_HOST}-var_log => /mnt/var/log"
+/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var_log /mnt/var/log >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Mount: ${AA_HOST}-var_log_audit => /mnt/var/log/audit"
+/usr/bin/mkdir -p /mnt/var/log/audit >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var_log_audit /mnt/var/log/audit >/dev/null 2>&1
+validate "$?"
+
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_AA_CMD="Mount: ${AA_HOST}-srv => /mnt/srv"
+	/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/mapper/${AA_HOST}-srv /mnt/srv >/dev/null 2>&1
+	validate "$?"
+fi
+
 printf "\\n"
 # }}}
 # Installation {{{
 desc "Installation"
-_PACSTRAP=(base base-devel bc bind-tools colordiff dateutils efibootmgr fish gptfdisk git htop iotop lvm2 nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo tmux unrar unzip vim zip)
+# packages to remove after installation
+_PACSTRAP_REMOVE=(linux pyalpm)
+_PACSTRAP=(aide base base-devel haveged linux-hardened linux-hardened-headers rkhunter sysstat usbguard)
+# bootloader
+_PACSTRAP+=(refind-efi)
+# filesystem
+_PACSTRAP+=(gptfdisk rsync)
+if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
+	# ROLE=VM: nfs-utils is not auto-installed (security risk)
+	_PACSTRAP+=(nfs-utils)
+fi
+# networking / services
+_PACSTRAP+=(bind-tools cronie nftables openssh)
+# pacman / aur helper
+_PACSTRAP+=(pacman-contrib pyalpm reflector)
+# common
+_PACSTRAP+=(arch-audit fish git sudo tmux vim wget)
+_PACSTRAP+=(bc dateutils htop iotop)
+# compression
+_PACSTRAP+=(p7zip unrar unzip zip)
+#_PACSTRAP=(arch-audit base base-devel bc bind-tools cronie dateutils fish gptfdisk git htop iotop lsof nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo tmux unrar unzip vim zip)
 if [ "${AA_UCODE^^}" = "INTEL" ]; then
-	_PACSTRAP+=(i7z intel-ucode)
+	_PACSTRAP+=(intel-ucode)
 elif [ "${AA_UCODE^^}" = "AMD" ]; then
 	_PACSTRAP+=(amd-ucode)
 fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_PACSTRAP+=(haveged qemu-guest-agent)
+	_PACSTRAP+=(qemu-guest-agent)
 else
 	_PACSTRAP+=(lm_sensors)
 fi
@@ -392,7 +525,7 @@ if [ "${AA_XORG}" -ne "0" ]; then
 		fi
 	else
 		if [ "${AA_XORG}" -eq "1" ]; then
-			_PACSTRAP+=(libva-intel-driver libvdpau-va-gl mesa-vdpau vdpauinfo xf86-video-intel)
+			_PACSTRAP+=(libva-intel-driver libvdpau-va-gl mesa-vdpau vdpauinfo vulkan-intel)
 		elif [ "${AA_XORG}" -eq "2" ]; then
 			_PACSTRAP+=(mesa-vdpau nvidia nvidia-settings vdpauinfo)
 		fi
@@ -400,6 +533,7 @@ if [ "${AA_XORG}" -ne "0" ]; then
 fi
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	_PACSTRAP+=(boost cmake libatasmart yaml-cpp)
+	_PACSTRAP_REMOVE+=(boost cmake)
 fi
 if [ -n "${AA_TLP_CONFIG}" ]; then
 	_PACSTRAP+=(tlp)
@@ -416,34 +550,42 @@ _AA_CMD="Generate: /etc/fstab"
 /usr/bin/genfstab -pU /mnt >> /mnt/etc/fstab
 validate "$?"
 
-_AA_CMD="Fstab: Journal Checksums"
-/usr/bin/sed -i 's/rw,relatime\t/rw,relatime,journal_checksum\t/' /mnt/etc/fstab >/dev/null 2>&1
-validate "$?"
-
 _AA_CMD="Fstab: Secure /boot"
 /usr/bin/sed -i 's/rw,relatime,fmask/ro,noatime,nodev,noexec,nosuid,fmask/' /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /dev/shm"
-echo -e "tmpfs\t/dev/shm\ttmpfs\trw,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0\t0" >> /mnt/etc/fstab
+echo -e "# /dev/shm: shared application memory\ntmpfs\t/dev/shm\ttmpfs\tdefaults,noatime,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0 0\n" >> /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /tmp"
-echo -e "tmpfs\t/tmp\ttmpfs\trw,noatime,nodev,nosuid,size=8192M,mode=1777\t0\t0" >> /mnt/etc/fstab
+echo -e "# /tmp: temporary files\ntmpfs\t/tmp\t\ttmpfs\tdefaults,noatime,nodev,nosuid,size=8192M,mode=1777\t0 0\n" >> /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /var/tmp"
-echo -e "/tmp\t/var/tmp\tnone\trw,noatime,nodev,noexec,nosuid,bind\t0\t0" >> /mnt/etc/fstab
+echo -e "# /var/tmp: temporary files (preserved)\n/tmp\t/var/tmp\tnone\tdefaults,noatime,nodev,noexec,nosuid,bind\t0 0\n" >> /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /proc"
-echo -e "proc\t/proc\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0\t0" >> /mnt/etc/fstab
+echo -e "# /proc: kernel and process information\nproc\t/proc\t\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0 0" >> /mnt/etc/fstab
 validate "$?"
+
+echo -en "\n# vim: ft=fstab sts=4 sw=4 ts=4 noet:\n" >> /mnt/etc/fstab
 
 printf "\\n"
 # }}}
 # Config: User Accounts {{{
 desc "Config: [0mUser Accounts"
+_AA_CMD="Enforce Strong Passwords"
+/usr/bin/cat > /mnt/etc/pam.d/passwd << EOF
+password required pam_cracklib.so authtok_type=ARCH retry=2 difok=6 minlen=12 dcredit=-1 ucredit=-1 lcredit=-1 ocredit=-1 maxrepeat=2 maxsequence=4 reject_username
+password required pam_unix.so use_authtok shadow sha512 rounds=65535
+EOF
+
+_AA_CMD="Enforce Password Rotation (4 years)"
+/usr/bin/sed -i -e 's/^PASS_MAX_DAYS\t99999/PASS_MAX_DAYS\t1460/' -e 's/^PASS_MIN_DAYS\t0/PASS_MIN_DAYS\t1/' /mnt/etc/login.defs
+validate "$?"
+
 _AA_CMD="Modify: Superuser Password"
 /usr/bin/arch-chroot /mnt chpasswd <<< "root:${AA_PASSWD}" >/dev/null 2>&1
 validate "$?"
@@ -463,6 +605,10 @@ Defaults env_keep += "SSH_AUTH_SOCK"
 %wheel ALL=(ALL) ALL
 ALL ALL=(ALL) /usr/sbin/checkupdates
 EOF
+validate "$?"
+
+_AA_CMD="Permissions: /etc/sudoers.d/kyaulabs"
+/usr/bin/chmod 600 /mnt/etc/sudoers.d/kyaulabs
 validate "$?"
 
 _AA_CMD="Groupadd: ssh"
@@ -519,11 +665,11 @@ scan_all_linux_kernels false
 menuentry "Arch Linux" {
 	icon /EFI/refind/themes/refind-aarch/icons/os_arch.png
 	volume "${_UUID}"
-	loader /vmlinuz-linux
-	initrd /initramfs-linux.img
+	loader /vmlinuz-linux-hardened
+	initrd /initramfs-linux-hardened.img
 	options "${_ROOT} ${_OPTIONS}"
 	submenuentry "Boot using fallback initramfs" {
-		initrd /initramfs-linux-fallback.img
+		initrd /initramfs-linux-fallback-hardened.img
 	}
 }
 
@@ -577,7 +723,7 @@ EOF
 validate "$?"
 
 _AA_CMD="Generate: Initial Ramdisk Environment"
-/usr/bin/arch-chroot /mnt mkinitcpio -p linux >/dev/null 2>&1
+/usr/bin/arch-chroot /mnt mkinitcpio -P >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_XORG}" -eq "2" ]; then
@@ -600,21 +746,64 @@ When=PostTransaction
 NeedsTargets
 Exec=/bin/sh -c 'while read -r trg; do case \$trg in linux) exit 0; esac; done; /usr/bin/mkinitcpio -P'
 EOF
-validate "$?"
+	validate "$?"
 fi
 
 _AA_CMD="Security: Kernel Runtime Parameters"
 /usr/bin/cat > /mnt/etc/sysctl.d/50-security.conf << EOF
+net.ipv4.conf.all.log_martians=1
+net.ipv4.conf.all.rp_filter=1
 net.ipv4.conf.all.secure_redirects=0
+net.ipv4.conf.default.log_martians=1
 net.ipv4.conf.default.secure_redirects=0
 net.ipv4.conf.default.send_redirects=0
 net.ipv4.conf.all.send_redirects=0
 net.ipv4.tcp_syncookies=1
 net.ipv4.tcp_rfc1337=1
 kernel.dmesg_restrict=1
-kernel.kptr_restrict=1
+kernel.kptr_restrict=2
+kernel.sysrq=0
 EOF
+if [ ! "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	/usr/bin/cat >> /mnt/etc/sysctl.d/50-security.conf << EOF
+net.ipv4.conf.default.accept_redirects=0
+net.ipv4.conf.default.accept_source_route=0
+net.ipv4.conf.all.accept_redirects=0
+net.ipv6.conf.all.accept_redirects=0
+net.ipv6.conf.default.accept_redirects=0
+EOF
+fi
 validate "$?"
+
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_AA_CMD="Blacklist Kernel Modules"
+	/usr/bin/cat > /mnt/etc/modprobe.d/blacklist.conf << EOF
+install affs /bin/false
+install befs /bin/false
+#install cifs /bin/false
+install coda /bin/false
+install cramfs /bin/false
+install firewire-core /bin/false
+install hfs /bin/false
+install hfsplus /bin/false
+install jfs /bin/false
+install jffs2 /bin/false
+install kafs /bin/false
+install mtd /bin/false
+install nilfs2 /bin/false
+install ocfs2 /bin/false
+install omfs /bin/false
+install orangefs /bin/false
+install overlay /bin/false
+#install reiserfs /bin/false
+install romfs /bin/false
+install squashfs /bin/false
+install ubifs /bin/false
+install udf /bin/false
+install usb-storage /bin/false
+EOF
+	validate "$?"
+fi
 
 _AA_CMD="Symlink: /etc/localtime"
 /usr/bin/arch-chroot /mnt ln -sf /usr/share/zoneinfo/${AA_TZ} /etc/localtime
@@ -644,6 +833,16 @@ _AA_CMD="Modify: Root \$EDITOR"
 echo -e "EDITOR=/usr/bin/rvim\nSUDO_EDITOR=/usr/bin/rvim" >> /mnt/root/.bashrc
 validate "$?"
 
+_AA_CMD="Create: /etc/issue"
+/usr/bin/cat > /mnt/etc/issue << EOF
+Unauthorized access to this system is prohibited
+Press <Ctrl-D> if you are not an authorized user
+
+EOF
+/usr/bin/cp -f /mnt/etc/issue /mnt/etc/issue.net >/dev/null 2>&1
+/usr/bin/chmod 644 /mnt/etc/issue /mnt/etc/issue.net
+validate "$?"
+
 _AA_CMD="Permissions: /bin/su"
 /usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su >/dev/null 2>&1
 /usr/bin/sed -i 's/^#auth\t\trequired\tpam_wheel.so use_uid/auth\t\trequired\tpam_wheel.so use_uid/' /mnt/etc/pam.d/su-l >/dev/null 2>&1
@@ -669,6 +868,58 @@ EOF
 		validate "$?"
 	fi
 fi
+
+_AA_CMD="Modify: Default umask (022 => 027)"
+/usr/bin/cat > /mnt/etc/profile.d/kyaulabs.sh << EOF
+# \$KYAULabs: kyaulabs.sh,v 1.0.0 2019/08/15 00:51:28 kyau Exp $
+
+# default permissions
+umask 027
+
+# set a 15 minute timeout policy for shells
+readonly TMOUT=900
+readonly HISTFILE
+
+# vim: ft=bash sts=4 sw=4 ts=4 noet:
+EOF
+validate "$?"
+
+_AA_CMD="Logrotate: pacman.log"
+/usr/bin/chmod 0640 /mnt/var/log/pacman.log
+/usr/bin/chown root:wheel /mnt/var/log/pacman.log
+/usr/bin/cat > /mnt/etc/logrotate.d/pacman << EOF
+/var/log/pacman.log {
+	compress
+	yearly
+	create 0640 root wheel
+	size 1M
+	rotate 1
+}
+EOF
+validate "$?"
+
+_AA_CMD="Permissions: Compilers"
+/usr/bin/arch-chroot /mnt pacman -Ql gcc | grep '/usr/bin/.\+' | awk '{ print $2 }' | {
+	while IFS= read -r file; do
+		chmod o-rwx "/mnt${file}"
+		chown root:wheel "/mnt${file}"
+	done
+	chmod o-rwx "/mnt/usr/sbin/as"
+	chown root:wheel "/mnt/usr/sbin/as"
+}
+validate "$?"
+
+_AA_CMD="AIDE: Configuration"
+/usr/bin/sed -i 's/^ALLXTRAHASHES = sha1+rmd160+sha256+sha512+tiger/#&/' /mnt/etc/aide.conf
+validate "$?"
+
+_AA_CMD="rkhunter: exceptions"
+/usr/bin/cat >> /mnt/etc/rkhunter.conf << EOF
+SCRIPTWHITELIST=/usr/bin/egrep
+SCRIPTWHITELIST=/usr/bin/fgrep
+SCRIPTWHITELIST=/usr/bin/ldd
+EOF
+validate "$?"
 
 printf "\\n"
 # }}}
@@ -721,7 +972,27 @@ echo -e "${AA_HOSTNAME}" > /mnt/etc/hostname
 validate "$?"
 
 _AA_CMD="Modify: /etc/hosts"
-echo -e "127.0.0.1\t${AA_HOST}.localhost.localdomain\t${AA_HOST}\n127.0.0.1\tlocalhost" >> /mnt/etc/hosts
+/usr/bin/cat > /mnt/etc/hosts << EOF
+# \$KYAULabs: hosts,v 1.0.0 2019/08/15 00:34:12 kyau Exp $
+#
+
+# <localhost>
+127.0.0.1			local
+127.0.0.1			localhost
+127.0.0.1			localhost.localdomain
+255.255.255.255		broadcasthost
+::1					localhost
+::1					ip6-localhost ip6-loopback
+fe00::0				ip6-localnet
+fe00::1				ip6-allnodes
+fe00::2				ip6-allrouters
+fe00::3				ip6-allhosts
+# </localhost>
+EOF
+if [ -n "${AA_IPADDR}" ]; then
+	echo -e "${AA_IPADDR}\t${AA_HOST}" >> /mnt/etc/hosts
+fi
+echo -e "\n# vim: ft=conf sts=4 sw=4 ts=4 noet:" >> /mnt/etc/hosts
 validate "$?"
 
 _AA_CMD="Systemd: Enable (systemd-networkd.service)"
@@ -792,6 +1063,14 @@ printf "\\n"
 # }}}
 # Config: Service Defaults {{{
 desc "Config: [0mService Defaults"
+_AA_CMD="Journald: Log Size"
+/usr/bin/mkdir -p /mnt/etc/systemd/journald.conf.d
+/usr/bin/cat > /mnt/etc/systemd/journald.conf.d/kyaulabs.conf << EOF
+[Journal]
+SystemMaxUse=50M
+EOF
+validate "$?"
+
 _AA_CMD="Systemd: Keep Boot Mesages"
 /usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d
 /usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/noclear.conf << EOF
@@ -851,6 +1130,53 @@ if [ -n "${AA_TFAN_CONFIG}" ]; then
 	validate "$?"
 fi
 
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_AA_CMD="Systemd: Enable (sysstat.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable sysstat.service >/dev/null 2>&1
+	validate "$?"
+fi
+
+_AA_CMD="Security: USBGuard"
+/usr/bin/sed -i -e 's/IPCAllowedGroups=/IPCAllowedGroups=wheel/' -e 's/PresentControllerPolicy=keep/PresentControllerPolicy=apply-policy/' /mnt/etc/usbguard/usbguard-daemon.conf
+validate "$?"
+
+_AA_CMD="Systemd: Enable (usbguard.service)"
+/usr/bin/arch-chroot /mnt systemctl enable usbguard.service >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Systemd: Create (aidecheck.timer)"
+/usr/bin/cat > /mnt/etc/systemd/system/aide.service << EOF
+[Unit]
+Description=Aide Check
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/aide --check
+
+[Install]
+WantedBy=multi-user.target
+EOF
+/usr/bin/cat > /mnt/etc/systemd/system/aide.timer << EOF
+[Unit]
+Description=Aide check every day at midnight
+
+[Timer]
+OnCalendar=*-*-* 00:00:00
+Unit=aide.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+validate "$?"
+
+_AA_CMD="Systemd: Enable (aide.timer)"
+/usr/bin/arch-chroot /mnt systemctl enable aide.timer >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Systemd: Enable (haveged.service)"
+/usr/bin/arch-chroot /mnt systemctl enable haveged.service >/dev/null 2>&1
+validate "$?"
+
 printf "\\n"
 # }}}
 # Config: SSH Defaults {{{
@@ -871,15 +1197,23 @@ Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.
 KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
 MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com
 
+AllowAgentForwarding no
 AllowGroups ssh
+AllowTcpForwarding no
 Banner /etc/ssh/sshd_banner
-
 ChallengeResponseAuthentication no
+ClientAliveCountMax 2
+Compression no
 LoginGraceTime 20
+LogLevel VERBOSE
+MaxAuthTries 3
+MaxSessions 2
 PasswordAuthentication no
+PermitRootLogin no
 PrintMotd no
-PrintLastLog no
+PrintLastLog yes
 Subsystem sftp /usr/lib/ssh/sftp-server
+TCPKeepAlive no
 
 # vim: ft=sshdconfig sts=4 sw=4 ts=4 noet:
 EOF
@@ -1026,8 +1360,10 @@ _AA_CMD="Create: /root/firstboot"
 /usr/bin/cat > /mnt/root/firstboot << EOF
 #!/usr/bin/env bash
 echo "-- AARCH: START --"
+mandb
 timedatectl set-ntp true
 localectl set-locale LANG=en_US.UTF-8
+usbguard generate-policy > /etc/usbguard/rules.conf
 echo "-- AARCH: BOOTLOADER --"
 echo -e "${AA_USERNAME} ALL=(ALL) NOPASSWD: ALL\n" > /etc/sudoers.d/temporary
 mount -o remount,rw /boot
@@ -1035,6 +1371,19 @@ mkdir -p /boot/EFI/tools
 curl -L https://github.com/tianocore/edk2/releases/latest/download/ShellBinPkg.zip -o ShellBinPkg.zip > /dev/null 2>&1
 unzip -qq ShellBinPkg.zip && cp ShellBinPkg/UefiShell/X64/Shell.efi /boot/EFI/tools/shellx64.efi && rm -rf /root/ShellBinPkg*
 EOF
+if [ "${AA_XORG}" -eq "0" ]; then
+	echo "systemctl set-default multi-user.target" >> /mnt/firstboot
+else
+	echo "systemctl set-default graphical.target" >> /mnt/firstboot
+fi
+if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	/usr/bin/cat >> /mnt/root/firstboot <<EOF
+runuser -l "${AA_USERNAME}" -c "mkdir -m700 -p ~/.gnupg/ && echo 'standard-resolver' > ~/.gnupg/dirmngr.conf && gpg --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys B73CBC7708FA8C10"
+sleep 5
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S acct --noedit --nodiff --noconfirm > /dev/null 2>&1"
+systemctl --now enable acct.service
+EOF
+fi
 if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot << EOF
 sensors-detect --auto
@@ -1049,6 +1398,7 @@ if [ -f /root/firstboot.txt ]; then
 	export AA_PKGMAN
 	export AA_XORG
 	# import firstboot.txt and substitute needed variables
+	# shellcheck disable=SC2016
 	envsubst '${AA_MACHINEROLE} ${AA_USERNAME} ${AA_PKGMAN} ${AA_XORG}' < /root/firstboot.txt > /root/__aa__firstboot.txt
 	mapfile -t lines <"/root/__aa__firstboot.txt"
 	for line in "${lines[@]}"; do
@@ -1060,9 +1410,15 @@ fi
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	echo "pacman -Rs boost cmake" >> /mnt/root/firstboot
 fi
+if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	echo "runuser -l \"${AA_USERNAME}\" -c \"${AA_PKGMAN} -Rs linux --noconfirm\"" >> /mnt/root/firstboot
+fi
 /usr/bin/cat >> /mnt/root/firstboot << EOF
 rm -f /etc/sudoers.d/temporary
 rm -f /root/firstboot
+echo "-- AARCH: SECURITY --"
+aide -i && cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+rkhunter --propupd
 echo "-- AARCH: END --"
 systemctl disable firstboot.service
 rm -f /etc/systemd/system/firstboot.service
