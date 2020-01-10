@@ -527,7 +527,7 @@ if [ "${AA_XORG}" -ne "0" ]; then
 		if [ "${AA_XORG}" -eq "1" ]; then
 			_PACSTRAP+=(libva-intel-driver libvdpau-va-gl mesa-vdpau vdpauinfo vulkan-intel)
 		elif [ "${AA_XORG}" -eq "2" ]; then
-			_PACSTRAP+=(mesa-vdpau nvidia nvidia-settings vdpauinfo)
+			_PACSTRAP+=(mesa-vdpau nvidia-dkms nvidia-settings vdpauinfo)
 		fi
 	fi
 fi
@@ -723,7 +723,7 @@ EOF
 validate "$?"
 
 _AA_CMD="Generate: Initial Ramdisk Environment"
-/usr/bin/arch-chroot /mnt mkinitcpio -P >/dev/null 2>&1
+/usr/bin/arch-chroot /mnt mkinitcpio -p linux-hardened >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_XORG}" -eq "2" ]; then
@@ -735,8 +735,8 @@ Operation=Install
 Operation=Upgrade
 Operation=Remove
 Type=Package
-Target=nvidia
-Target=linux
+Target=nvidia-dkms
+Target=linux-hardened
 # Change the linux part above and in the Exec line if a different kernel is used
 
 [Action]
