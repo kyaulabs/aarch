@@ -274,14 +274,22 @@ validate "$?"
 
 _AA_CMD="${AA_DISK}: Partition"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	/usr/bin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8e00 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
+	if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+		/usr/bin/sgdisk -n 1:0:256M -n 2:0:+50G -n 3:0:+50G -n 4:0:-0 -t 1:ef00 -t 2:8e00 -t 3:0700 -t 4:8e00 ${AA_DISK} >/dev/null 2>&1
+	else
+		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 ${AA_DISK} >/dev/null 2>&1
+	fi
 else
-	/usr/bin/sgdisk -n 1:0:-256M -n 2:-256M:-0 -t 1:8300 -t 2:ef00 ${AA_DISK} >/dev/null 2>&1
+	/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8300 ${AA_DISK} >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="${AA_DISK}: Labels"
-/usr/bin/sgdisk -c 1:"archlinux" -c 2:"uefi" ${AA_DISK} >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" -c 3:"win10" -c 4:"kali" ${AA_DISK} >/dev/null 2>&1
+else
+	/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" ${AA_DISK} >/dev/null 2>&1
+fi
 validate "$?"
 # }}}
 # Prereq: LUKS2 {{{
@@ -293,14 +301,14 @@ if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
 	validate "$?"
 
-	_AA_CMD="LUKS2: Encrypting Partition ${AA_DISK}1"
+	_AA_CMD="LUKS2: Encrypting Partition ${AA_DISK}2"
 	printf "\n\x1b[38;5;6m ≡ WARNING:\x1b[0m encryption password will be needed at every boot\n"
-	/usr/bin/cryptsetup --type luks2 -q -c aes-xts-plain64 -l 512 -h sha512 --pbkdf argon2i --pbkdf-force-iterations 4 --pbkdf-memory 1048576 --pbkdf-parallel 1 --label archlinux --subsystem "" --use-random luksFormat ${AA_DISK}1
+	/usr/bin/cryptsetup --type luks2 -q -c aes-xts-plain64 -l 512 -h sha512 --pbkdf argon2i --pbkdf-force-iterations 4 --pbkdf-memory 1048576 --pbkdf-parallel 1 --label archlinux --subsystem "" --use-random luksFormat ${AA_DISK}2
 	validate "$?"
 
-	_AA_CMD="LUKS2: Decrypting Partition ${AA_DISK}1"
+	_AA_CMD="LUKS2: Decrypting Partition ${AA_DISK}2"
 	printf "\n"
-	/usr/bin/cryptsetup open --type luks2 ${AA_DISK}1 cryptlvm
+	/usr/bin/cryptsetup open --type luks2 ${AA_DISK}2 cryptlvm
 	validate "$?"
 else
 	_AA_CMD="LVM: Clear Metadata"
@@ -317,7 +325,7 @@ _AA_CMD="LVM: Initialize Physical Volume"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	/usr/bin/pvcreate --yes /dev/mapper/cryptlvm >/dev/null 2>&1
 else
-	/usr/bin/pvcreate --yes ${AA_DISK}1 >/dev/null 2>&1
+	/usr/bin/pvcreate --yes ${AA_DISK}2 >/dev/null 2>&1
 fi
 validate "$?"
 
@@ -325,7 +333,7 @@ _AA_CMD="LVM: Create Volume Group"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	/usr/bin/vgcreate --yes ${AA_HOST} /dev/mapper/cryptlvm >/dev/null 2>&1
 else
-	/usr/bin/vgcreate --yes ${AA_HOST} ${AA_DISK}1 >/dev/null 2>&1
+	/usr/bin/vgcreate --yes ${AA_HOST} ${AA_DISK}2 >/dev/null 2>&1
 fi
 validate "$?"
 
@@ -419,8 +427,8 @@ if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; the
 	validate "$?"
 fi
 
-_AA_CMD="Format: FAT32 (${AA_DISK}2)"
-/usr/bin/mkfs.fat -F32 ${AA_DISK}2 >/dev/null 2>&1
+_AA_CMD="Format: FAT32 (${AA_DISK}1)"
+/usr/bin/mkfs.fat -F32 ${AA_DISK}1 >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Swap: Create"
@@ -444,7 +452,7 @@ fi
 validate "$?"
 
 _AA_CMD="Mount: UEFI => /mnt/boot"
-/usr/bin/mount ${AA_DISK}2 /mnt/boot >/dev/null 2>&1
+/usr/bin/mount ${AA_DISK}1 /mnt/boot >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-home => /mnt/home"
@@ -489,6 +497,8 @@ desc "Installation"
 # packages to remove after installation
 _PACSTRAP_REMOVE=(linux pyalpm)
 _PACSTRAP=(aide base base-devel haveged linux-hardened linux-hardened-headers rkhunter sysstat usbguard)
+# packages that used to be in base
+_PACSTRAP+=(linux-firmware inetutils logrotate lvm2 man-db man-pages)
 # bootloader
 _PACSTRAP+=(refind-efi)
 # filesystem
@@ -538,6 +548,9 @@ fi
 if [ -n "${AA_TLP_CONFIG}" ]; then
 	_PACSTRAP+=(tlp)
 fi
+if [ -n "${AA_WIFI_SSID}" ]; then
+	_PACSTRAP+=(wpa_supplicant)
+fi
 _AA_CMD="Pacstrap Installation Script"
 /usr/bin/pacstrap "/mnt" "${_PACSTRAP[@]}" >/dev/null 2>&1
 validate "$?"
@@ -567,7 +580,11 @@ echo -e "# /var/tmp: temporary files (preserved)\n/tmp\t/var/tmp\tnone\tdefaults
 validate "$?"
 
 _AA_CMD="Fstab: Secure /proc"
-echo -e "# /proc: kernel and process information\nproc\t/proc\t\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0 0" >> /mnt/etc/fstab
+if [ "${AA_XORG}" -ne "0" ]; then
+	echo -e "# /proc: kernel and process information\nproc\t/proc\t\tproc\tnodev,noexec,nosuid,gid=wheel\t0 0" >> /mnt/etc/fstab
+else
+	echo -e "# /proc: kernel and process information\nproc\t/proc\t\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0 0" >> /mnt/etc/fstab
+fi
 validate "$?"
 
 echo -en "\n# vim: ft=fstab sts=4 sw=4 ts=4 noet:\n" >> /mnt/etc/fstab
@@ -630,7 +647,7 @@ _AA_CMD="Install: Refind"
 validate "$?"
 
 _AA_CMD="Modify: /boot/EFI/refind/refind.conf"
-_UUID=$(blkid -s PARTUUID -o value ${AA_DISK}2)
+_UUID=$(blkid -s PARTUUID -o value ${AA_DISK}1)
 _ROOT="root=/dev/mapper/${AA_HOST}-root"
 _OPTIONS="rw add_efi_memmap zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
 _TIMEOUT="10"
@@ -650,7 +667,7 @@ if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 	fi
 fi
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	_UUID_LUKS=$(blkid -s UUID -o value ${AA_DISK}1)
+	_UUID_LUKS=$(blkid -s UUID -o value ${AA_DISK}2)
 	_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=discard root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
 fi
 /usr/bin/cat > /mnt/boot/EFI/refind/refind.conf << EOF
@@ -1181,8 +1198,8 @@ printf "\\n"
 # }}}
 # Config: SSH Defaults {{{
 desc "Config: [0mSSH Defaults"
-_AA_CMD="Systemd: Enable (sshd.socket)"
-/usr/bin/arch-chroot /mnt systemctl enable sshd.socket >/dev/null 2>&1
+_AA_CMD="Systemd: Enable (sshd.service)"
+/usr/bin/arch-chroot /mnt systemctl enable sshd.service >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Create: /etc/ssh/sshd_config"
