@@ -1,4 +1,4 @@
-# $KYAULabs: example.aa,v 2.2.0 2019/08/05 20:08:57 kyau Exp $
+# $KYAULabs: example.aa,v 2.2.2 2020/01/25 00:57:48 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -8,7 +8,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2019 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2020 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -27,7 +27,8 @@
 # autoarch script when run
 
 AA_MACHINEROLE="vm"				# Machine Role [desktop/laptop/server/vm]
-AA_ENCRYPT=1					# Full Disk Encrypt [0=False/1=True]
+AA_MACHINETYPE="uefi"			# Machine Type [mbr/uefi]
+AA_ENCRYPT=0					# Full Disk Encrypt [0=False/1=True]
 AA_UCODE="intel"				# CPU microcode [amd/intel]
 AA_XORG=0						# Xorg	[0=False/1=QXL]				(vm)
 								#		[0=False/1=Intel/2=NVIDIA]	(*)
@@ -39,7 +40,7 @@ AA_USERNAME="kyau"				# Default Username
 AA_PASSWD="moo"					# Default Password (user/root/luks)
 AA_WIFI_SSID=""					# WiFi SSID (Disabled if Blank)
 AA_WIFI_PASSWD=""				# WiFi Password
-AA_IPADDR="10.0.42.36"			# Static IP for eth0 (DHCP if Blank)
+AA_IPADDR="10.0.42.50"			# Static IP for eth0 (DHCP if Blank)
 AA_GATEWAY="10.0.42.1"			# Gateway for eth0 (Ignored if IPADDR is Blank)
 AA_DNS="10.0.42.42"				# DNS (cloudflare, google, neustar, opendns, or 
 								# a custom ip)

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+ARGS=$@
+
+/usr/bin/pvremove -y -ff ${ARGS}*
+/usr/bin/dmsetup remove_all
+/usr/bin/wipefs -af ${ARGS}
+/usr/bin/dd if=/dev/zero of=${ARGS} bs=1k count=8192

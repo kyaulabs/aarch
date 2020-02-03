@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.4.0 2019/08/18 16:09:57 kyau Exp $
+# $KYAULabs: aarch,v 2.4.8 2020/01/25 00:57:14 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -10,7 +10,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2019 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2020 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -47,7 +47,9 @@ function validate() {
 	# if failure else success
 	if [[ "$1" -ne 0 ]]; then
 		>&2 printf "\\n \\x1b[31mx\\x1b[0m %s\\n\\n" "${_AA_CMD}"
-		exit 1
+		if [[ -z ${2+x} ]]; then
+			exit 1
+		fi
 	else
 		>&2 printf " \\x1b[1;32m\\u221a\\x1b[0m"
 	fi
@@ -76,6 +78,14 @@ if [ -z ${AA_MACHINEROLE+x} ]; then
 	read -r AA_MACHINEROLE
 	if [ -z "$AA_MACHINEROLE" ]; then
 		AA_MACHINEROLE="vm"
+	fi
+fi
+# Machine Type
+if [ -z ${AA_MACHINETYPE+x} ]; then
+	printf "Machine Type (mbr/uefi) [default: uefi]: "
+	read -r AA_MACHINETYPE
+	if [ -z "$AA_MACHINETYPE" ]; then
+		AA_MACHINETYPE="uefi"
 	fi
 fi
 # Full Disk Encryption
@@ -220,6 +230,7 @@ printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mHost: \\x
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mUsername: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_USERNAME}"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${p_passwd}"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mMachine Role: \\x1b[38;5;240m%-38s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_MACHINEROLE^^}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mMachine Type: \\x1b[38;5;240m%-38s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_MACHINETYPE^^}"
 if [ -n "${AA_WIFI_SSID}" ]; then
 	printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mWiFi SSID: \\x1b[38;5;240m%-16s \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-14s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${AA_WIFI_SSID}" "${s_passwd}"
 fi
@@ -268,9 +279,11 @@ _AA_CMD="${AA_DISK}: Erase (filesystem signature)"
 /usr/bin/wipefs -af "${AA_DISK}" >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="${AA_DISK}: Erase (MBR/GPT data structs)"
-/usr/bin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
-validate "$?"
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	_AA_CMD="${AA_DISK}: Erase (MBR/GPT data structs)"
+	/usr/bin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="${AA_DISK}: Partition"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
@@ -280,17 +293,23 @@ if [ "${AA_ENCRYPT}" -eq "1" ]; then
 		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 ${AA_DISK} >/dev/null 2>&1
 	fi
 else
-	/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8300 ${AA_DISK} >/dev/null 2>&1
+	if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8300 ${AA_DISK} >/dev/null 2>&1
+	else
+		echo -e "n\np\n\n\n+256M\nn\np\n\n\n\nt\n2\n8e\na\n1\nw\n" | /usr/bin/fdisk ${AA_DISK} >/dev/null 2>&1
+	fi
 fi
 validate "$?"
 
-_AA_CMD="${AA_DISK}: Labels"
-if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
-	/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" -c 3:"win10" -c 4:"kali" ${AA_DISK} >/dev/null 2>&1
-else
-	/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" ${AA_DISK} >/dev/null 2>&1
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	_AA_CMD="${AA_DISK}: Labels"
+	if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" -c 3:"win10" -c 4:"kali" ${AA_DISK} >/dev/null 2>&1
+	else
+		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" ${AA_DISK} >/dev/null 2>&1
+	fi
+	validate "$?"
 fi
-validate "$?"
 # }}}
 # Prereq: LUKS2 {{{
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
@@ -337,9 +356,11 @@ else
 fi
 validate "$?"
 
-_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-swap)"
-/usr/bin/lvcreate -L 1G ${AA_HOST} --name swap >/dev/null 2>&1
-validate "$?"
+if [ "${AA_SWAP}" -ne "0" ]; then
+	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-swap)"
+	/usr/bin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-root)"
 /usr/bin/lvcreate -L 512M ${AA_HOST} --name root >/dev/null 2>&1
@@ -427,17 +448,25 @@ if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; the
 	validate "$?"
 fi
 
-_AA_CMD="Format: FAT32 (${AA_DISK}1)"
-/usr/bin/mkfs.fat -F32 ${AA_DISK}1 >/dev/null 2>&1
-validate "$?"
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	_AA_CMD="Format: FAT32 (${AA_DISK}1)"
+	/usr/bin/mkfs.fat -F32 ${AA_DISK}1 >/dev/null 2>&1
+	validate "$?"
+else
+	_AA_CMD="Format: Ext4 (${AA_DISK}1)"
+	/usr/bin/mkfs.ext4 -O metadata_csum ${AA_DISK}1 >/dev/null 2>&1
+	validate "$?"
+fi
 
-_AA_CMD="Swap: Create"
-/usr/bin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
-validate "$?"
+if [ "${AA_SWAP}" -ne "0" ]; then
+	_AA_CMD="Swap: Create"
+	/usr/bin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+	validate "$?"
 
-_AA_CMD="Swap: Enable"
-/usr/bin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
-validate "$?"
+	_AA_CMD="Swap: Enable"
+	/usr/bin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="Mount: ${AA_HOST}-root => /mnt"
 /usr/bin/mount -o defaults,noatime,journal_checksum /dev/mapper/${AA_HOST}-root /mnt >/dev/null 2>&1
@@ -451,9 +480,15 @@ fi
 /usr/bin/mkdir -p /mnt/boot /mnt/home /mnt/usr /mnt/var ${_ADD_DIR} >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Mount: UEFI => /mnt/boot"
-/usr/bin/mount ${AA_DISK}1 /mnt/boot >/dev/null 2>&1
-validate "$?"
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	_AA_CMD="Mount: UEFI => /mnt/boot"
+	/usr/bin/mount ${AA_DISK}1 /mnt/boot >/dev/null 2>&1
+	validate "$?"
+else
+	_AA_CMD="Mount: ${AA_DISK}2 => /mnt/boot"
+	/usr/bin/mount ${AA_DISK}1 /mnt/boot >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="Mount: ${AA_HOST}-home => /mnt/home"
 /usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/mapper/${AA_HOST}-home /mnt/home >/dev/null 2>&1
@@ -498,24 +533,34 @@ desc "Installation"
 _PACSTRAP_REMOVE=(linux pyalpm)
 _PACSTRAP=(aide base base-devel haveged linux-hardened linux-hardened-headers rkhunter sysstat usbguard)
 # packages that used to be in base
-_PACSTRAP+=(linux-firmware inetutils logrotate lvm2 man-db man-pages)
+_PACSTRAP+=(linux-firmware logrotate lvm2 man-db man-pages)
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_PACSTRAP+=(apparmor)
+fi
 # bootloader
-_PACSTRAP+=(refind-efi)
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	_PACSTRAP+=(refind-efi gptfdisk)
+else
+	_PACSTRAP+=(grub)
+fi
 # filesystem
-_PACSTRAP+=(gptfdisk rsync)
+_PACSTRAP+=(rsync)
 if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 	# ROLE=VM: nfs-utils is not auto-installed (security risk)
 	_PACSTRAP+=(nfs-utils)
 fi
 # networking / services
 _PACSTRAP+=(bind-tools cronie nftables openssh)
+if [ -n "${AA_IPADDR}" ]; then
+	_PACSTRAP+=(dhcpcd)
+fi
 # pacman / aur helper
 _PACSTRAP+=(pacman-contrib pyalpm reflector)
 # common
 _PACSTRAP+=(arch-audit fish git sudo tmux vim wget)
 _PACSTRAP+=(bc dateutils htop iotop)
 # compression
-_PACSTRAP+=(p7zip unrar unzip zip)
+_PACSTRAP+=(p7zip unrar)
 #_PACSTRAP=(arch-audit base base-devel bc bind-tools cronie dateutils fish gptfdisk git htop iotop lsof nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo tmux unrar unzip vim zip)
 if [ "${AA_UCODE^^}" = "INTEL" ]; then
 	_PACSTRAP+=(intel-ucode)
@@ -564,7 +609,15 @@ _AA_CMD="Generate: /etc/fstab"
 validate "$?"
 
 _AA_CMD="Fstab: Secure /boot"
-/usr/bin/sed -i 's/rw,relatime,fmask/ro,noatime,nodev,noexec,nosuid,fmask/' /mnt/etc/fstab
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	/usr/bin/sed -i 's/rw,relatime,fmask/ro,noatime,nodev,noexec,nosuid,fmask/' /mnt/etc/fstab
+else
+	/usr/bin/sed -i 's/rw,relatime,stripe=4/ro,noatime,nodev,noexec,nosuid,stripe=4/' /mnt/etc/fstab
+fi
+validate "$?"
+
+_AA_CMD="Fstab: Secure /"
+/usr/bin/sed -i 's/rw,noatime\t0 1/defaults,noatime\t0 1/' /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /dev/shm"
@@ -572,11 +625,15 @@ echo -e "# /dev/shm: shared application memory\ntmpfs\t/dev/shm\ttmpfs\tdefaults
 validate "$?"
 
 _AA_CMD="Fstab: Secure /tmp"
-echo -e "# /tmp: temporary files\ntmpfs\t/tmp\t\ttmpfs\tdefaults,noatime,nodev,nosuid,size=8192M,mode=1777\t0 0\n" >> /mnt/etc/fstab
+echo -e "# /tmp: temporary files\ntmpfs\t/tmp\t\ttmpfs\tdefaults,noatime,nodev,noexec,nosuid,size=8192M,mode=1777\t0 0\n" >> /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /var/tmp"
 echo -e "# /var/tmp: temporary files (preserved)\n/tmp\t/var/tmp\tnone\tdefaults,noatime,nodev,noexec,nosuid,bind\t0 0\n" >> /mnt/etc/fstab
+validate "$?"
+
+_AA_CMD="Fstab: Secure /var/cache/makepkg"
+echo -e "# /var/cache/makepkg: temporary build dir\ntmpfs\t/var/cache/makepkg\t\ttmpfs\tdefaults,noatime,nodev,nosuid,size=4096M,mode=1770,uid=root,gid=wheel\t0 0\n" >> /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /proc"
@@ -642,35 +699,37 @@ printf "\\n"
 # }}}
 # Config: Bootloader {{{
 desc "Config: [0mBootloader"
-_AA_CMD="Install: Refind"
-/usr/bin/arch-chroot /mnt refind-install >/dev/null 2>&1
-validate "$?"
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	_AA_CMD="Install: Refind"
+	/usr/bin/arch-chroot /mnt refind-install >/dev/null 2>&1
+	validate "$?"
 
-_AA_CMD="Modify: /boot/EFI/refind/refind.conf"
-_UUID=$(blkid -s PARTUUID -o value ${AA_DISK}1)
-_ROOT="root=/dev/mapper/${AA_HOST}-root"
-_OPTIONS="rw add_efi_memmap zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
-_TIMEOUT="10"
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_TIMEOUT="3"
-fi
-if [ "${AA_UCODE^^}" = "AMD" ]; then
-	_OPTIONS="${_OPTIONS} initrd=/amd-ucode.img"
-elif [ "${AA_UCODE^^}" = "INTEL" ]; then
-	_OPTIONS="${_OPTIONS} initrd=/intel-ucode.img"
-fi
-if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
-	if [ "${AA_XORG}" -eq "1" ]; then
-		_OPTIONS="${_OPTIONS} i915.enable_fbc=1 i915.enable_guc=2 i915.fastboot=1"
-	elif [ "${AA_XORG}" -eq "2" ]; then
-		_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1"
+	_AA_CMD="Modify: /boot/EFI/refind/refind.conf"
+	_UUID=$(blkid -s PARTUUID -o value ${AA_DISK}1)
+	_ROOT="root=/dev/mapper/${AA_HOST}-root"
+	_OPTIONS="rw add_efi_memmap zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
+	_TIMEOUT="10"
+	if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+		_TIMEOUT="3"
+		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor audit=1"
 	fi
-fi
-if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	_UUID_LUKS=$(blkid -s UUID -o value ${AA_DISK}2)
-	_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=discard root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
-fi
-/usr/bin/cat > /mnt/boot/EFI/refind/refind.conf << EOF
+	if [ "${AA_UCODE^^}" = "AMD" ]; then
+		_OPTIONS="${_OPTIONS} initrd=/amd-ucode.img"
+	elif [ "${AA_UCODE^^}" = "INTEL" ]; then
+		_OPTIONS="${_OPTIONS} initrd=/intel-ucode.img"
+	fi
+	if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
+		if [ "${AA_XORG}" -eq "1" ]; then
+			_OPTIONS="${_OPTIONS} i915.enable_fbc=1 i915.enable_guc=2 i915.fastboot=1"
+		elif [ "${AA_XORG}" -eq "2" ]; then
+			_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1"
+		fi
+	fi
+	if [ "${AA_ENCRYPT}" -eq "1" ]; then
+		_UUID_LUKS=$(blkid -s UUID -o value ${AA_DISK}2)
+		_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=discard root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
+	fi
+	/usr/bin/cat > /mnt/boot/EFI/refind/refind.conf << EOF
 # \$KYAULabs: refind.conf,v 1.000 2019/07/26 14:23:04 kyau Exp \$
 
 timeout ${_TIMEOUT}
@@ -694,15 +753,72 @@ include themes/refind-aarch/theme.conf
 
 # vim: ft=conf sts=4 sw=4 ts=4 noet:
 EOF
-validate "$?"
+	validate "$?"
 
-_AA_CMD="Install: rEFInd-theme"
-/usr/sbin/mkdir -p /mnt/boot/EFI/refind/themes
-/usr/bin/arch-chroot /mnt git clone https://gitlab.com/kyaulabs/refind-aarch.git /boot/EFI/refind/themes/refind-aarch >/dev/null 2>&1
-validate "$?"
+	_AA_CMD="Install: rEFInd-theme"
+	/usr/sbin/mkdir -p /mnt/boot/EFI/refind/themes
+	/usr/bin/arch-chroot /mnt git clone https://gitlab.com/kyaulabs/refind-aarch.git /boot/EFI/refind/themes/refind-aarch >/dev/null 2>&1
+	validate "$?"
+else
+	_AA_CMD="Install: GRUB2"
+	/usr/bin/partprobe ${AA_DISK}
+	/usr/bin/arch-chroot /mnt grub-install --target=i386-pc ${AA_DISK} >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Secure: GRUB2"
+	GRUB_PASSWD=$(echo -e "${AA_PASSWD}\n${AA_PASSWD}\n" | /usr/sbin/grub-mkpasswd-pbkdf2 | tail -n 1 | cut -d ' ' -f 7)
+	/usr/bin/cat > /mnt/etc/grub.d/05_superusers << EOL
+cat << EOF
+set superusers="${AA_USERNAME}"
+password_pbkdf2 ${AA_USERNAME} ${GRUB_PASSWD}
+EOF
+EOL
+	chmod 0700 /mnt/etc/grub.d/05_superusers
+	validate "$?"
+
+	_AA_CMD="Secure: GRUB2 Menu Entries"
+	/usr/bin/sed -i "s/ \${CLASS} / \${CLASS} --users \'\' /" /mnt/etc/grub.d/10_linux
+	validate "$?"
+
+	_AA_CMD="Config: GRUB2 Kernel Parameters"
+	_OPTIONS="zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
+	_TIMEOUT="10"
+	if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+		_TIMEOUT="3"
+		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor audit=1"
+	fi
+	if [ "${AA_UCODE^^}" = "AMD" ]; then
+		_OPTIONS="${_OPTIONS} initrd=/amd-ucode.img"
+	elif [ "${AA_UCODE^^}" = "INTEL" ]; then
+		_OPTIONS="${_OPTIONS} initrd=/intel-ucode.img"
+	fi
+	if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
+		if [ "${AA_XORG}" -eq "1" ]; then
+			_OPTIONS="${_OPTIONS} i915.enable_fbc=1 i915.enable_guc=2 i915.fastboot=1"
+		elif [ "${AA_XORG}" -eq "2" ]; then
+			_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1"
+		fi
+	fi
+	/usr/bin/sed -i -e "s/GRUB_TIMEOUT=5/GRUB_TIMEOUT=${_TIMEOUT}/" -e "s/GRUB_CMDLINE_LINUX_DEFAULT=\"loglevel=3 quiet\"/GRUB_CMDLINE_LINUX_DEFAULT=\"${_OPTIONS}\"/" /mnt/etc/default/grub
+	validate "$?"
+
+	if [ "${AA_ENCRYPT}" -eq "1" ]; then
+		_AA_CMD="Config: GRUB2 LUKS Support"
+		/usr/bin/sed -i 's/#GRUB_ENABLE_CRYPT/GRUB_ENABLE_CRYPT/' /mnt/etc/default/grub
+		validate "$?"
+	fi
+	
+	_AA_CMD="Config: GRUB2"
+	/usr/bin/arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="Install: Console Font"
-/usr/bin/cp /mnt/boot/EFI/refind/themes/refind-aarch/fonts/agave-r.psf.gz /mnt/usr/share/kbd/consolefonts/ >/dev/null 2>&1
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	/usr/bin/cp /mnt/boot/EFI/refind/themes/refind-aarch/fonts/agave-r.psf.gz /mnt/usr/share/kbd/consolefonts/ >/dev/null 2>&1
+else
+	/usr/bin/wget https://gitlab.com/kyaulabs/refind-aarch/raw/master/fonts/agave-r.psf.gz -O /mnt/usr/share/kbd/consolefonts/agave-r.psf.gz >/dev/null 2>&1
+fi
 validate "$?"
 
 printf "\\n"
@@ -866,7 +982,12 @@ _AA_CMD="Permissions: /bin/su"
 validate "$?"
 
 _AA_CMD="Permissions: /boot, /root, /home/${AA_USERNAME}"
-/usr/bin/arch-chroot /mnt chmod -R go-rwx /root /home/kyau /boot
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	/usr/bin/arch-chroot /mnt chmod -R go-rwx /root /home/kyau /boot
+else
+	/usr/bin/arch-chroot /mnt chmod -R go-rwx /root /home/kyau
+	/usr/bin/arch-chroot /mnt chmod go-rwx /boot
+fi
 validate "$?"
 
 _AA_CMD="Modify: Oldschool NIC Names"
@@ -887,11 +1008,19 @@ EOF
 fi
 
 _AA_CMD="Modify: Default umask (022 => 027)"
+/usr/bin/sed -i 's/umask 022/umask 027/' /mnt/etc/profile
+/usr/bin/sed -i 's/# If not running/umask 027\n\n# If not running/' /mnt/etc/bash.bashrc
+validate "$?"
+
+_AA_CMD="Modify: Default Profile"
 /usr/bin/cat > /mnt/etc/profile.d/kyaulabs.sh << EOF
 # \$KYAULabs: kyaulabs.sh,v 1.0.0 2019/08/15 00:51:28 kyau Exp $
 
 # default permissions
 umask 027
+
+# disable core dumps
+ulimit -c 0
 
 # set a 15 minute timeout policy for shells
 readonly TMOUT=900
@@ -963,9 +1092,9 @@ if [ "${#AA_DOMAINS[*]}" -gt 0 ]; then
 	done
 fi
 if [ -n "${AA_IPADDR}" ]; then
-	_NIC="${_NIC}DHCP=no\n${_DNS}\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
+	_NIC="${_NIC}DHCP=no\n${_DNS}IPv6AcceptRA=no\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
 else
-	_NIC="${_NIC}DHCP=ipv4\n${_DNS}\nNTP=pool.ntp.org\n[Address]\nLabel=archlinux"
+	_NIC="${_NIC}DHCP=ipv4\n${_DNS}NTP=pool.ntp.org\n[Address]\nLabel=archlinux"
 fi
 echo -e "${_NIC}" > /mnt/etc/systemd/network/eth0.network
 validate "$?"
@@ -1007,7 +1136,7 @@ fe00::3				ip6-allhosts
 # </localhost>
 EOF
 if [ -n "${AA_IPADDR}" ]; then
-	echo -e "${AA_IPADDR}\t${AA_HOST}" >> /mnt/etc/hosts
+	echo -e "${AA_IPADDR}\t${AA_HOST}.localdomain\t${AA_HOST}\n" >> /mnt/etc/hosts
 fi
 echo -e "\n# vim: ft=conf sts=4 sw=4 ts=4 noet:" >> /mnt/etc/hosts
 validate "$?"
@@ -1028,8 +1157,30 @@ _AA_CMD="Modify: /etc/pacman.conf"
 /usr/bin/sed -i 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
 validate "$?"
 
+_AA_CMD="Modify: /etc/makepkg.conf"
+/usr/bin/mkdir -p /mnt/var/cache/makepkg
+/usr/bin/chmod 0750 /mnt/var/cache/makepkg
+/usr/bin/sed -i 's/BUILDDIR=\/tmp\/makepkg/BUILDDIR=\/var\/cache\/makepkg/' /mnt/etc/makepkg.conf
+validate "$?"
+
 _AA_CMD="Modify: /etc/pacman.d/mirrorlist"
-/usr/bin/arch-chroot /mnt reflector --latest 100 --protocol https --sort rate --save /etc/pacman.d/mirrorlist
+/usr/bin/arch-chroot /mnt reflector --latest 100 --protocol https --sort rate --save /etc/pacman.d/mirrorlist >/dev/null 2>&1
+validate "$?" 1
+
+_AA_CMD="Modify: Self-Updating mirrorlist"
+/usr/bin/mkdir -p /mnt/etc/pacman.d/hooks/
+/usr/bin/cat > /mnt/etc/pacman.d/hooks/mirrorupgrade.hook << EOF
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = pacman-mirrorlist
+
+[Action]
+Description = Updating pacman-mirrorlist with reflector and removing pacnew...
+When = PostTransaction
+Depends = reflector
+Exec = /bin/sh -c "reflector --protocol https --latest 100 --age 24 --sort rate --save /etc/pacman.d/mirrorlist; rm -f /etc/pacman.d/mirrorlist.pacnew"
+EOF
 validate "$?"
 
 _AA_CMD="Download: AUR Helper (${AA_PKGMAN})"
@@ -1104,6 +1255,24 @@ ExecStartPre=/bin/sh -c 'setleds -D +num < /dev/%I'
 EOF
 validate "$?"
 
+_AA_CMD="Disable: Core Dumps"
+/usr/bin/cat > /mnt/etc/sysctl.d/50-coredump.conf << EOF
+kernel.core_pattern=|/bin/false
+EOF
+/usr/bin/mkdir -p /mnt/etc/systemd/coredump.conf.d/
+/usr/bin/cat > /mnt/etc/systemd/coredump.conf.d/custom.conf << EOF
+[Coredump]
+Storage=none
+ProcessSizeMax=0
+EOF
+echo "* hard core 0" >> /mnt/etc/security/limits.conf
+validate "$?"
+
+_AA_CMD="Secure: Crontab"
+/usr/bin/chmod 0600 /mnt/etc/cron.deny
+/usr/bin/chmod 0700 /mnt/etc/cron.d /mnt/etc/cron.daily /mnt/etc/cron.hourly /mnt/etc/cron.weekly /mnt/etc/cron.monthly
+validate "$?"
+
 _AA_CMD="Modify: /etc/systemd/timesyncd.conf"
 /usr/bin/cat >> /mnt/etc/systemd/timesyncd.conf << EOF
 NTP=0.arch.pool.ntp.org 1.arch.pool.ntp.org 2.arch.pool.ntp.org 3.arch.pool.ntp.org
@@ -1150,6 +1319,261 @@ fi
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_AA_CMD="Systemd: Enable (sysstat.service)"
 	/usr/bin/arch-chroot /mnt systemctl enable sysstat.service >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Secure: SYSSTAT Log Files"
+	/usr/bin/sed -i 's/UMASK=0022/UMASK=0027/' /mnt/etc/conf.d/sysstat
+	validate "$?"
+
+	_AA_CMD="Systemd: Enable (auditd.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable auditd.service >/dev/null 2>&1
+	validate "$?"
+
+	_AA_CMD="Config: Auditd"
+	/usr/bin/sed -i 's/active = no/active = yes/' /mnt/etc/audisp/plugins.d/syslog.conf
+	/usr/bin/mkdir -p /mnt/etc/audit/rules.d
+	/usr/bin/cat >> /mnt/etc/audit/rules.d/kyaulabs.rules << EOF
+# \$KYAULabs: kyaulabs.rules,v 1.0.2 2020/01/23 14:00:12 kyau Exp $
+#
+# attribution: https://github.com/Neo23x0/auditd
+#			   https://linux-audit.com/tuning-auditd-high-performance-linux-auditing/
+
+# Remove Existing Rules
+-D
+
+# Buffer Size
+-b 8192
+
+# Failure Mode (0: silent, 1: printk a failure message, 2: panic or halt system)
+-f 1
+
+# Ignore Errors
+-i
+
+# Self Auditing {{{
+# Audit the Audit Logs
+-w /var/log/audit/ -k auditlog
+
+# Audit Configuration
+-w /etc/audit/ -p wa -k auditconfig
+-w /etc/libaudit.conf -p wa -k auditconfig
+-w /etc/audisp/ -p wa -k auditconfig
+# }}}
+
+# Filters {{{
+# Ignore Auditctl
+-a always,exclude -F msgtype=CONFIG_CHANGE
+-a always,exclude -F msgtype=SYSCALL -S 44
+# Ignore SELinux AVC Records
+-a always,exclude -F msgtype=AVC
+# Ignore CWD Records
+-a always,exclude -F msgtype=CWD
+# Ignore End of Event Records
+-a always,exclude -F msgtype=EOE
+# Ignore Crypo Key
+-a always,exclude -F msgtype=CRYPTO_KEY_USER
+# VMware Tools
+#-a exit,never -F arch=b32 -S fork -F success=0 -F path=/usr/lib/vmware-tools -F subj_type=initrc_t -F exit=-2
+#-a exit,never -F arch=b64 -S fork -F success=0 -F path=/usr/lib/vmware-tools -F subj_type=initrc_t -F exit=-2
+# High Volume Event Filter
+-a exit,never -F arch=b32 -F dir=/dev/shm -k sharedmemaccess
+-a exit,never -F arch=b64 -F dir=/dev/shm -k sharedmemaccess
+-a exit,never -F arch=b32 -F dir=/var/lock/lvm -k locklvm
+-a exit,never -F arch=b64 -F dir=/var/lock/lvm -k locklvm
+# }}}
+
+# Rules {{{
+# Kernel Parameters
+-w /etc/sysctl.conf -p wa -k sysctl
+# Kernel Module Loading/Unloading
+-a always,exit -F perm=x -F auid!=-1 -F path=/sbin/insmod -k modules
+-a always,exit -F perm=x -F auid!=-1 -F path=/sbin/modprobe -k modules
+-a always,exit -F perm=x -F auid!=-1 -F path=/sbin/rmmod -k modules
+-a always,exit -F arch=b64 -S finit_module -S init_module -S delete_module -F auid!=-1 -k modules
+-a always,exit -F arch=b32 -S finit_module -S init_module -S delete_module -F auid!=-1 -k modules
+# Modprobe Configuration
+-w /etc/modprobe.conf -p wa -k modprobe
+# KExec Usage
+-a always,exit -F arch=b64 -S kexec_load -k KEXEC
+-a always,exit -F arch=b32 -S sys_kexec_load -k KEXEC
+# Special Files
+-a exit,always -F arch=b32 -S mknod -S mknodat -k specialfiles
+-a exit,always -F arch=b64 -S mknod -S mknodat -k specialfiles
+# Mount Operations (only attributable)
+-a always,exit -F arch=b64 -S mount -S umount2 -F auid!=-1 -k mount
+-a always,exit -F arch=b32 -S mount -S umount -S umount2 -F auid!=-1 -k mount
+# Change Swap (only attributable)
+-a always,exit -F arch=b64 -S swapon -S swapoff -F auid!=-1 -k swap
+-a always,exit -F arch=b32 -S swapon -S swapoff -F auid!=-1 -k swap
+# Time
+-a exit,always -F arch=b32 -S adjtimex -S settimeofday -S clock_settime -k time
+-a exit,always -F arch=b64 -S adjtimex -S settimeofday -S clock_settime -k time
+# Local Timezone
+-w /etc/localtime -p wa -k localtime
+# Cron Configuration & Jobs
+-w /etc/cron.allow -p wa -k cron
+-w /etc/cron.deny -p wa -k cron
+-w /etc/cron.d/ -p wa -k cron
+-w /etc/cron.daily/ -p wa -k cron
+-w /etc/cron.hourly/ -p wa -k cron
+-w /etc/cron.monthly/ -p wa -k cron
+-w /etc/cron.weekly/ -p wa -k cron
+-w /etc/crontab -p wa -k cron
+-w /var/spool/cron/ -k cron
+# User, Group & Passwd Databases
+-w /etc/group -p wa -k etcgroup
+-w /etc/passwd -p wa -k etcpasswd
+-w /etc/gshadow -k etcgroup
+-w /etc/shadow -k etcpasswd
+# Sudo Configuration
+-w /etc/sudoers -p wa -k actions
+-w /etc/sudoers.d/ -p wa -k actions
+# Passwd
+-w /usr/bin/passwd -p x -k passwd_modification
+# User/Group Modification
+-w /usr/sbin/groupadd -p x -k group_modification
+-w /usr/sbin/groupmod -p x -k group_modification
+-w /usr/sbin/useradd -p x -k user_modification
+-w /usr/sbin/usermod -p x -k user_modification
+# Login Configuration
+-w /etc/login.defs -p wa -k login
+-w /etc/securetty -p wa -k login
+-w /var/log/lastlog -p wa -k login
+-w /var/log/tallylog -p wa -k login
+# Hostname Changes
+-a always,exit -F arch=b32 -S sethostname -S setdomainname -k network_modifications
+-a always,exit -F arch=b64 -S sethostname -S setdomainname -k network_modifications
+# IPv4 Connections
+-a always,exit -F arch=b64 -S connect -F a2=16 -F success=1 -F key=network_connect_4
+-a always,exit -F arch=b32 -S connect -F a2=16 -F success=1 -F key=network_connect_4
+# IPv6 Connections
+-a always,exit -F arch=b64 -S connect -F a2=28 -F success=1 -F key=network_connect_6
+-a always,exit -F arch=b32 -S connect -F a2=28 -F success=1 -F key=network_connect_6
+# Network Configuration
+-w /etc/hosts -p wa -k network_modifications
+-w /etc/issue -p wa -k etcissue
+-w /etc/issue.net -p wa -k etcissue
+# Library Search Paths
+-w /etc/ld.so.conf -p wa -k libpath
+-w /etc/ld.so.conf.d/ -p wa -k libpath
+# Pam Configuration
+-w /etc/pam.d/ -p wa -k pam
+-w /etc/security/limits.conf -p wa  -k pam
+-w /etc/security/pam_env.conf -p wa -k pam
+-w /etc/security/namespace.conf -p wa -k pam
+-w /etc/security/namespace.init -p wa -k pam
+# Postfix
+-w /etc/aliases -p wa -k mail
+-w /etc/postfix/ -p wa -k mail
+# SSHD Configuration
+-w /etc/ssh/ -p wa -k sshd
+# Systemd
+-w /bin/systemctl -p x -k systemd
+-w /etc/systemd/ -p wa -k systemd
+# SELinux MAC Events
+-w /etc/selinux/ -p wa -k mac_policy
+# Critical Access Failures
+-a exit,always -F arch=b64 -S open -F dir=/etc -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/bin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/sbin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/usr/bin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/usr/sbin -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/var -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/home -F success=0 -k unauthedfileaccess
+-a exit,always -F arch=b64 -S open -F dir=/srv -F success=0 -k unauthedfileaccess
+# Privilege Escalation
+-w /usr/sbin/su -p x -k priv_esc
+-w /usr/sbin/sudo -p x -k priv_esc
+-w /etc/sudoers -p rw -k priv_esc
+# Power State
+-w /usr/sbin/halt -p x -k power
+-w /usr/sbin/poweroff -p x -k power
+-w /usr/sbin/reboot -p x -k power
+-w /usr/sbin/shutdown -p x -k power
+# Session Information
+-w /var/run/utmp -p wa -k session
+-w /var/log/btmp -p wa -k session
+-w /var/log/wtmp -p wa -k session
+# Discretionary Access Control (DAC) Modifications
+#-a always,exit -F arch=b32 -S chmod -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S chown -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S fchmod -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S fchmodat -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S fchown -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S fchownat -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S fremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S fsetxattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S lchown -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S lremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S lsetxattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S removexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b32 -S setxattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S chmod  -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S chown -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S fchmod -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S fchmodat -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S fchown -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S fchownat -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S fremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S fsetxattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S lchown -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S lremovexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S lsetxattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S removexattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+#-a always,exit -F arch=b64 -S setxattr -F auid>=500 -F auid!=4294967295 -k perm_mod
+# 32-bit API Exploitation
+-a always,exit -F arch=b32 -S all -k 32bit_api
+# Reconnaissance
+-w /usr/sbin/whoami -p x -k recon
+-w /etc/issue -p r -k recon
+-w /etc/issue.net -p r -k recon
+-w /etc/hostname -p r -k recon
+# Suspicious Activity
+-w /usr/sbin/wget -p x -k susp_activity
+-w /usr/sbin/curl -p x -k susp_activity
+-w /usr/sbin/base64 -p x -k susp_activity
+-w /usr/sbin/ss -p x -k susp_activity
+-w /usr/sbin/iptables -p x -k susp_activity
+-w /usr/sbin/mtr -p x -k susp_activity
+-w /usr/sbin/nft -p x -k susp_activity
+-w /usr/sbin/tcpdump -p x -k susp_activity
+-w /usr/sbin/traceroute -p x -k susp_activity
+# Ptrace Injection
+-a always,exit -F arch=b32 -S ptrace -k tracing
+-a always,exit -F arch=b64 -S ptrace -k tracing
+-a always,exit -F arch=b32 -S ptrace -F a0=0x4 -k code_injection
+-a always,exit -F arch=b64 -S ptrace -F a0=0x4 -k code_injection
+-a always,exit -F arch=b32 -S ptrace -F a0=0x5 -k data_injection
+-a always,exit -F arch=b64 -S ptrace -F a0=0x5 -k data_injection
+-a always,exit -F arch=b32 -S ptrace -F a0=0x6 -k register_injection
+-a always,exit -F arch=b64 -S ptrace -F a0=0x6 -k register_injection
+# Docker
+-w /usr/bin/docker -p x -k docker
+-w /usr/bin/docker-init -p x -k docker
+-w /usr/bin/docker-proxy -p x -k docker
+-w /usr/bin/dockerd -p x -k docker
+-w /etc/docker/ -p wa -k docker
+-w /var/lib/docker/ -p wa -k docker
+# Unauthorized Creation
+-a always,exit -F arch=b32 -S creat,link,mknod,mkdir,symlink,mknodat,linkat,symlinkat -F exit=-EACCES -k file_creation
+-a always,exit -F arch=b64 -S mkdir,creat,link,symlink,mknod,mknodat,linkat,symlinkat -F exit=-EACCES -k file_creation
+-a always,exit -F arch=b32 -S link,mkdir,symlink,mkdirat -F exit=-EPERM -k file_creation
+-a always,exit -F arch=b64 -S mkdir,link,symlink,mkdirat -F exit=-EPERM -k file_creation
+# Unauthorized Modification
+-a always,exit -F arch=b32 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EACCES -k file_modification
+-a always,exit -F arch=b64 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EACCES -k file_modification
+-a always,exit -F arch=b32 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EPERM -k file_modification
+-a always,exit -F arch=b64 -S rename -S renameat -S truncate -S chmod -S setxattr -S lsetxattr -S removexattr -S lremovexattr -F exit=-EPERM -k file_modification
+# }}}
+
+# Make Configuration Immutable
+-e 2
+EOF
+	validate "$?"
+
+	_AA_CMD="Security: AppArmor"
+	echo "write-cache" >> /mnt/etc/apparmor/parser.conf
+	/usr/bin/arch-chroot /mnt systemctl enable apparmor.service >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -1207,6 +1631,7 @@ _AA_CMD="Create: /etc/ssh/sshd_config"
 # \$KYAULabs: sshd_config,v 1.000 2019/07/26 14:18:25 kyau Exp \$
 
 # https://cipherli.st/
+Port 4222
 Protocol 2
 HostKey /etc/ssh/ssh_host_ed25519_key
 HostKey /etc/ssh/ssh_host_rsa_key
@@ -1235,6 +1660,10 @@ TCPKeepAlive no
 # vim: ft=sshdconfig sts=4 sw=4 ts=4 noet:
 EOF
 #/usr/bin/wget ${AA_SSHD_CONFIG} -O /mnt/etc/ssh/sshd_config >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Secure: sshd_config"
+/usr/bin/chmod 0600 /mnt/etc/ssh/sshd_config
 validate "$?"
 
 _AA_CMD="Create: ~/.ssh/"
@@ -1320,10 +1749,16 @@ table inet filter {
 		ip protocol icmp icmp type echo-request limit rate 10/second accept
 
 		# allow ssh, but with brute force protection
-		tcp dport ssh limit rate 15/minute accept
+		tcp dport 4222 limit rate 15/minute accept
 
 		# allow http and https traffic
-		#tcp dport {http,https} accept
+		# tcp dport {http,https} accept
+
+		# allow traffic from specific ip's
+		# ip saddr { 1.2.3.4, 4.3.2.1 } tcp dport 1234 ct state new,established counter accept
+
+		# allow a range of ports
+		# ip dport { 1000-2000,3000-4000 } accept
 
 		# everything else (blackhole)
 		reject with icmp type port-unreachable
@@ -1383,11 +1818,15 @@ localectl set-locale LANG=en_US.UTF-8
 usbguard generate-policy > /etc/usbguard/rules.conf
 echo "-- AARCH: BOOTLOADER --"
 echo -e "${AA_USERNAME} ALL=(ALL) NOPASSWD: ALL\n" > /etc/sudoers.d/temporary
+EOF
+if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+	/usr/bin/cat >> /mnt/root/firstboot <<EOF
 mount -o remount,rw /boot
 mkdir -p /boot/EFI/tools
 curl -L https://github.com/tianocore/edk2/releases/latest/download/ShellBinPkg.zip -o ShellBinPkg.zip > /dev/null 2>&1
-unzip -qq ShellBinPkg.zip && cp ShellBinPkg/UefiShell/X64/Shell.efi /boot/EFI/tools/shellx64.efi && rm -rf /root/ShellBinPkg*
+7z x ShellBinPkg.zip && cp ShellBinPkg/UefiShell/X64/Shell.efi /boot/EFI/tools/shellx64.efi && rm -rf /root/ShellBinPkg*
 EOF
+fi
 if [ "${AA_XORG}" -eq "0" ]; then
 	echo "systemctl set-default multi-user.target" >> /mnt/firstboot
 else
@@ -1427,10 +1866,20 @@ fi
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	echo "pacman -Rs boost cmake" >> /mnt/root/firstboot
 fi
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	echo "runuser -l \"${AA_USERNAME}\" -c \"${AA_PKGMAN} -S addrwatch lynis-git --noconfirm\"" >> /mnt/root/firstboot
+	echo "sed -i -e 's/After=systemd-network-wait-online.service/After=network.target network-online.target/' -e 's/Wants=systemd-network-wait-online.service/Wants=network-online.target/' -e 's/addrwatch -q/addrwatch -P -q/' /usr/lib/systemd/system/addrwatch@.service" >> /mnt/root/firstboot
+	echo "systemctl enable addrwatch@eth0.service" >> /mnt/root/firstboot
+fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
-	echo "runuser -l \"${AA_USERNAME}\" -c \"${AA_PKGMAN} -Rs linux --noconfirm\"" >> /mnt/root/firstboot
+	/usr/bin/cat >> /mnt/root/firstboot << EOF
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -Rs linux --noconfirm"
+echo -e "skip-upgrade-test=yes\nskip-test=ACCT-9626\nskip-test=AUTH-9408\nskip-test=NETW-2705\nskip-test=FIRE-4512\nskip-test=BANN-7126\nskip-test=BANN-7130" >> /etc/lynis/custom.prf
+
+EOF
 fi
 /usr/bin/cat >> /mnt/root/firstboot << EOF
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S inetutils-git --noconfirm" >/dev/null 2>&1
 rm -f /etc/sudoers.d/temporary
 rm -f /root/firstboot
 echo "-- AARCH: SECURITY --"
@@ -1438,6 +1887,7 @@ aide -i && cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 rkhunter --propupd
 echo "-- AARCH: END --"
 systemctl disable firstboot.service
+systemctl daemon-reload
 rm -f /etc/systemd/system/firstboot.service
 EOF
 validate "$?"
