@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.4.8 2020/01/25 00:57:14 kyau Exp $
+# $KYAULabs: aarch,v 2.5.6 2021/05/07 22:47:48 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -10,7 +10,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2020 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2021 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -294,7 +294,7 @@ if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	fi
 else
 	if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
-		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8300 ${AA_DISK} >/dev/null 2>&1
+		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 ${AA_DISK} >/dev/null 2>&1
 	else
 		echo -e "n\np\n\n\n+256M\nn\np\n\n\n\nt\n2\n8e\na\n1\nw\n" | /usr/bin/fdisk ${AA_DISK} >/dev/null 2>&1
 	fi
@@ -312,6 +312,12 @@ if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 fi
 # }}}
 # Prereq: LUKS2 {{{
+LASTCHAR="${AA_DISK: -1}"
+re='^[0-9]+$'
+if [[ $LASTCHAR =~ $re ]] ; then
+   AA_DISK="${AA_DISK}p"	# modify variable if it ends in a number
+fi
+
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	printf "\\n"
 	desc "Prereq: [0mLUKS2"
@@ -331,8 +337,8 @@ if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	validate "$?"
 else
 	_AA_CMD="LVM: Clear Metadata"
-	/usr/bin/dmsetup remove_all >/dev/null 2>&1
 	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
+	/usr/bin/dmsetup remove_all >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -342,9 +348,9 @@ printf "\\n"
 desc "Prereq: [0mLVM"
 _AA_CMD="LVM: Initialize Physical Volume"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	/usr/bin/pvcreate --yes /dev/mapper/cryptlvm >/dev/null 2>&1
+	/usr/bin/pvcreate --yes -ff /dev/mapper/cryptlvm >/dev/null 2>&1
 else
-	/usr/bin/pvcreate --yes ${AA_DISK}2 >/dev/null 2>&1
+	/usr/bin/pvcreate --yes -ff ${AA_DISK}2 >/dev/null 2>&1
 fi
 validate "$?"
 
@@ -358,47 +364,45 @@ validate "$?"
 
 if [ "${AA_SWAP}" -ne "0" ]; then
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-swap)"
-	/usr/bin/lvcreate -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
 	validate "$?"
 fi
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-root)"
-/usr/bin/lvcreate -L 512M ${AA_HOST} --name root >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name root >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-usr)"
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
-	/usr/bin/lvcreate -L 5G ${AA_HOST} --name usr >/dev/null 2>&1
-elif [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	/usr/bin/lvcreate -L 4G ${AA_HOST} --name usr >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	/usr/bin/lvcreate --yes -L 5G ${AA_HOST} --name usr >/dev/null 2>&1
 else
-	/usr/bin/lvcreate -L 8G ${AA_HOST} --name usr >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 8G ${AA_HOST} --name usr >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var)"
-/usr/bin/lvcreate -L 512M ${AA_HOST} --name var >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name var >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_cache)"
 if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	/usr/bin/lvcreate -L 1G ${AA_HOST} --name var_cache >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 1G ${AA_HOST} --name var_cache >/dev/null 2>&1
 else
-	/usr/bin/lvcreate -L 2G ${AA_HOST} --name var_cache >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 2G ${AA_HOST} --name var_cache >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log)"
-/usr/bin/lvcreate -L 512M ${AA_HOST} --name var_log >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name var_log >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log_audit)"
-/usr/bin/lvcreate -L 512M ${AA_HOST} --name var_log_audit >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name var_log_audit >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
-	/usr/bin/lvcreate -L 512M ${AA_HOST} --name home >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 1G ${AA_HOST} --name home >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-srv)"
@@ -531,15 +535,15 @@ printf "\\n"
 desc "Installation"
 # packages to remove after installation
 _PACSTRAP_REMOVE=(linux pyalpm)
-_PACSTRAP=(aide base base-devel haveged linux-hardened linux-hardened-headers rkhunter sysstat usbguard)
+_PACSTRAP=(base base-devel haveged linux-hardened linux-hardened-headers rkhunter sysstat)
 # packages that used to be in base
 _PACSTRAP+=(linux-firmware logrotate lvm2 man-db man-pages)
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_PACSTRAP+=(apparmor)
+	_PACSTRAP+=(apparmor usbguard)
 fi
 # bootloader
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
-	_PACSTRAP+=(refind-efi gptfdisk)
+	_PACSTRAP+=(gptfdisk)
 else
 	_PACSTRAP+=(grub)
 fi
@@ -551,9 +555,6 @@ if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 fi
 # networking / services
 _PACSTRAP+=(bind-tools cronie nftables openssh)
-if [ -n "${AA_IPADDR}" ]; then
-	_PACSTRAP+=(dhcpcd)
-fi
 # pacman / aur helper
 _PACSTRAP+=(pacman-contrib pyalpm reflector)
 # common
@@ -700,23 +701,38 @@ printf "\\n"
 # Config: Bootloader {{{
 desc "Config: [0mBootloader"
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
-	_AA_CMD="Install: Refind"
-	/usr/bin/arch-chroot /mnt refind-install >/dev/null 2>&1
+	_AA_CMD="Install: systemd-boot"
+	/usr/bin/arch-chroot /mnt bootctl install >/dev/null 2>&1
 	validate "$?"
 
-	_AA_CMD="Modify: /boot/EFI/refind/refind.conf"
-	_UUID=$(blkid -s PARTUUID -o value ${AA_DISK}1)
+	_AA_CMD="Create: systemd-boot Pacman Hook"
+	/usr/bin/mkdir -p /mnt/etc/pacman.d/hooks/
+	/usr/bin/cat > /mnt/etc/pacman.d/hooks/00-systemd-boot.hook << EOF
+[Trigger]
+Type = Package
+Operation = Upgrade
+Target = systemd
+
+[Action]
+Description = Updating systemd-boot
+When = PostTransaction
+Exec = /usr/bin/bootctl update
+EOF
+	validate "$?"
+
+	_AA_CMD="Modify: /boot/loader/loader.conf"
+	/usr/bin/cat > /mnt/boot/loader/loader.conf << EOF
+default arch.conf
+timeout 5
+console-mode max
+editor no
+EOF
+
+	_AA_CMD="Modify: /boot/loader/entries/arch.conf"
 	_ROOT="root=/dev/mapper/${AA_HOST}-root"
 	_OPTIONS="rw add_efi_memmap zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
-	_TIMEOUT="10"
 	if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-		_TIMEOUT="3"
 		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor audit=1"
-	fi
-	if [ "${AA_UCODE^^}" = "AMD" ]; then
-		_OPTIONS="${_OPTIONS} initrd=/amd-ucode.img"
-	elif [ "${AA_UCODE^^}" = "INTEL" ]; then
-		_OPTIONS="${_OPTIONS} initrd=/intel-ucode.img"
 	fi
 	if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 		if [ "${AA_XORG}" -eq "1" ]; then
@@ -729,35 +745,14 @@ if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 		_UUID_LUKS=$(blkid -s UUID -o value ${AA_DISK}2)
 		_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=discard root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
 	fi
-	/usr/bin/cat > /mnt/boot/EFI/refind/refind.conf << EOF
-# \$KYAULabs: refind.conf,v 1.000 2019/07/26 14:23:04 kyau Exp \$
-
-timeout ${_TIMEOUT}
-resolution 4
-scan_driver_dirs EFI/BOOT/drivers_x64,EFI/BOOT/drivers,EFI/refind/drivers_x64,EFI/refind/drivers
-dont_scan_dirs EFI/Dell
-scan_all_linux_kernels false
-
-menuentry "Arch Linux" {
-	icon /EFI/refind/themes/refind-aarch/icons/os_arch.png
-	volume "${_UUID}"
-	loader /vmlinuz-linux-hardened
-	initrd /initramfs-linux-hardened.img
-	options "${_ROOT} ${_OPTIONS}"
-	submenuentry "Boot using fallback initramfs" {
-		initrd /initramfs-linux-fallback-hardened.img
-	}
-}
-
-include themes/refind-aarch/theme.conf
-
-# vim: ft=conf sts=4 sw=4 ts=4 noet:
-EOF
-	validate "$?"
-
-	_AA_CMD="Install: rEFInd-theme"
-	/usr/sbin/mkdir -p /mnt/boot/EFI/refind/themes
-	/usr/bin/arch-chroot /mnt git clone https://gitlab.com/kyaulabs/refind-aarch.git /boot/EFI/refind/themes/refind-aarch >/dev/null 2>&1
+	if [ "${AA_UCODE^^}" = "AMD" ]; then
+		_OPTIONS="initrd	/amd-ucode.img\ninitrd	/initramfs-linux-hardened.img\noptions	${_ROOT} ${_OPTIONS}"
+	elif [ "${AA_UCODE^^}" = "INTEL" ]; then
+		_OPTIONS="initrd	/intel-ucode.img\ninitrd	/initramfs-linux-hardened.img\noptions	${_ROOT} ${_OPTIONS}"
+	else
+		_OPTIONS="initrd    /initramfs-linux-hardened.img\noptions  ${_ROOT} ${_OPTIONS}"
+	fi
+	/usr/bin/echo -e "title	Arch Linux\nlinux	/vmlinuz-linux-hardened\n${_OPTIONS}" > /mnt/boot/loader/entries/arch.conf
 	validate "$?"
 else
 	_AA_CMD="Install: GRUB2"
@@ -766,7 +761,7 @@ else
 	validate "$?"
 
 	_AA_CMD="Secure: GRUB2"
-	GRUB_PASSWD=$(echo -e "${AA_PASSWD}\n${AA_PASSWD}\n" | /usr/sbin/grub-mkpasswd-pbkdf2 | tail -n 1 | cut -d ' ' -f 7)
+	GRUB_PASSWD=$(echo -e "${AA_PASSWD}\n${AA_PASSWD}\n" | /mnt/usr/sbin/grub-mkpasswd-pbkdf2 | tail -n 1 | cut -d ' ' -f 7)
 	/usr/bin/cat > /mnt/etc/grub.d/05_superusers << EOL
 cat << EOF
 set superusers="${AA_USERNAME}"
@@ -814,11 +809,7 @@ EOL
 fi
 
 _AA_CMD="Install: Console Font"
-if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
-	/usr/bin/cp /mnt/boot/EFI/refind/themes/refind-aarch/fonts/agave-r.psf.gz /mnt/usr/share/kbd/consolefonts/ >/dev/null 2>&1
-else
-	/usr/bin/wget https://gitlab.com/kyaulabs/refind-aarch/raw/master/fonts/agave-r.psf.gz -O /mnt/usr/share/kbd/consolefonts/agave-r.psf.gz >/dev/null 2>&1
-fi
+/usr/bin/wget https://gitlab.com/kyaulabs/refind-aarch/raw/master/fonts/agave-r.psf.gz -O /mnt/usr/share/kbd/consolefonts/agave-r.psf.gz >/dev/null 2>&1
 validate "$?"
 
 printf "\\n"
@@ -1014,7 +1005,7 @@ validate "$?"
 
 _AA_CMD="Modify: Default Profile"
 /usr/bin/cat > /mnt/etc/profile.d/kyaulabs.sh << EOF
-# \$KYAULabs: kyaulabs.sh,v 1.0.0 2019/08/15 00:51:28 kyau Exp $
+# \$KYAULabs: kyaulabs.sh,v 1.0.0 2019/08/15 00:51:28 kyau Exp \$
 
 # default permissions
 umask 027
@@ -1055,10 +1046,6 @@ _AA_CMD="Permissions: Compilers"
 }
 validate "$?"
 
-_AA_CMD="AIDE: Configuration"
-/usr/bin/sed -i 's/^ALLXTRAHASHES = sha1+rmd160+sha256+sha512+tiger/#&/' /mnt/etc/aide.conf
-validate "$?"
-
 _AA_CMD="rkhunter: exceptions"
 /usr/bin/cat >> /mnt/etc/rkhunter.conf << EOF
 SCRIPTWHITELIST=/usr/bin/egrep
@@ -1071,32 +1058,37 @@ printf "\\n"
 # }}}
 # Config: Networking {{{
 desc "Config: [0mNetworking"
-_AA_CMD="Config: eth0"
+_AA_CMD="Config: eth0.network"
 _NIC="[Match]\nName=eth0\n\n[Network]\n"
-_DNS=""
-if [ -z "${AA_DNS}" ] || [ "${AA_DNS^^}" = "CLOUDFLARE" ]; then
-	_DNS="DNS=1.1.1.1\nDNS=1.0.0.1\n"
-elif [ "${AA_DNS^^}" = "OPENDNS" ]; then
-	_DNS="DNS=208.67.222.222\nDNS=208.67.220.220\n"
-elif [ "${AA_DNS^^}" = "GOOGLE" ]; then
-	_DNS="DNS=8.8.8.8\nDNS=8.8.4.4\n"
-elif [ "${AA_DNS^^}" = "NEUSTAR" ]; then
-	_DNS="DNS=156.154.70.5\nDNS=156.154.71.5\n"
-else
-	_DNS="DNS=${AA_DNS}\n"
-fi
-_DNS="${_DNS}DNSOverTLS=opportunistic\n"
-if [ "${#AA_DOMAINS[*]}" -gt 0 ]; then
-	for i in "${AA_DOMAINS[@]}"; do
-		_DNS="${_DNS}Domains=${i}\n"
-	done
-fi
 if [ -n "${AA_IPADDR}" ]; then
+	_DNS=""
+	if [ -z "${AA_DNS}" ] || [ "${AA_DNS^^}" = "CLOUDFLARE" ]; then
+		_DNS="DNS=1.1.1.1\nDNS=1.0.0.1\n"
+	elif [ "${AA_DNS^^}" = "OPENDNS" ]; then
+		_DNS="DNS=208.67.222.222\nDNS=208.67.220.220\n"
+	elif [ "${AA_DNS^^}" = "GOOGLE" ]; then
+		_DNS="DNS=8.8.8.8\nDNS=8.8.4.4\n"
+	elif [ "${AA_DNS^^}" = "NEUSTAR" ]; then
+		_DNS="DNS=156.154.70.5\nDNS=156.154.71.5\n"
+	else
+		_DNS="DNS=${AA_DNS}\n"
+	fi
+	_DNS="${_DNS}DNSOverTLS=opportunistic\n"
+	if [ "${#AA_DOMAINS[*]}" -gt 0 ]; then
+		for i in "${AA_DOMAINS[@]}"; do
+			_DNS="${_DNS}Domains=${i}\n"
+		done
+	fi
 	_NIC="${_NIC}DHCP=no\n${_DNS}IPv6AcceptRA=no\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
 else
-	_NIC="${_NIC}DHCP=ipv4\n${_DNS}NTP=pool.ntp.org\n[Address]\nLabel=archlinux"
+	_NIC="${_NIC}DHCP=ipv4\nIPv6AcceptRA=no\nNTP=pool.ntp.org\n\n[DHCP]\nUseDNS=true\nUseDomains=true\n\n[Address]\nLabel=archlinux"
 fi
 echo -e "${_NIC}" > /mnt/etc/systemd/network/eth0.network
+validate "$?"
+
+_AA_CMD="Config: eth.link"
+_MACADDR=$(/usr/bin/cat /sys/class/net/eth0/address)
+echo -e "[Match]\nMACAddress=${_MACADDR}\n\n[Link]\nName=eth0" > /mnt/etc/systemd/network/eth0.link
 validate "$?"
 
 if [ -n "${AA_WIFI_SSID}" ]; then
@@ -1104,8 +1096,13 @@ if [ -n "${AA_WIFI_SSID}" ]; then
 	/usr/bin/arch-chroot /mnt /usr/bin/wpa_passphrase ${AA_WIFI_SSID} ${AA_WIFI_PASSWD} > /mnt/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
 	validate "$?"
 
-	_AA_CMD="Config: wlan0"
-	echo -e "[Match]\nName=wlan0\n\n[Network]\nDHCP=ipv4\n${_DNS}\nNTP=pool.ntp.org\n[Address]\nLabel=archlinux" > /mnt/etc/systemd/network/wlan0.network
+	_AA_CMD="Config: wlan0.network"
+	echo -e "[Match]\nName=wlan0\n\n[Network]\nDHCP=ipv4\nNTP=pool.ntp.org\n[DHCP]\nUseDNS=true\nUseDomains=true\n[Address]\nLabel=archlinux" > /mnt/etc/systemd/network/wlan0.network
+	validate "$?"
+
+	_AA_CMD="Config: wlan0.link"
+	_MACADDR=$(/usr/bin/cat /sys/class/net/wlan0/address)
+	echo -e "[Match]\nMACAddress=${_MACADDR}\n\n[Link]\nName=wlan0" > /mnt/etc/systemd/network/wlan0.link
 	validate "$?"
 
 	_AA_CMD="Systemd: Enable (wpa_supplicant@wlan0.service)"
@@ -1119,7 +1116,7 @@ validate "$?"
 
 _AA_CMD="Modify: /etc/hosts"
 /usr/bin/cat > /mnt/etc/hosts << EOF
-# \$KYAULabs: hosts,v 1.0.0 2019/08/15 00:34:12 kyau Exp $
+# \$KYAULabs: hosts,v 1.0.0 2019/08/15 00:34:12 kyau Exp \$
 #
 
 # <localhost>
@@ -1183,6 +1180,10 @@ Exec = /bin/sh -c "reflector --protocol https --latest 100 --age 24 --sort rate 
 EOF
 validate "$?"
 
+_AA_CMD="Config: Sudo (temporary)"
+echo -e "${AA_USERNAME} ALL=(ALL) NOPASSWD: ALL\n" > /mnt/etc/sudoers.d/temporary
+validate "$?"
+
 _AA_CMD="Download: AUR Helper (${AA_PKGMAN})"
 /usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c "git clone https://aur.archlinux.org/${AA_PKGMAN}.git" >/dev/null 2>&1
 validate "$?"
@@ -1192,7 +1193,7 @@ _AA_CMD="Compile: AUR Helper (${AA_PKGMAN})"
 validate "$?"
 
 _AA_CMD="Install: AUR Helper (${AA_PKGMAN})"
-T_PKGAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/${AA_PKGMAN}/ | /usr/bin/grep .tar.xz)
+T_PKGAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/${AA_PKGMAN}/ | /usr/bin/grep .pkg.tar.zst)
 /usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/${AA_PKGMAN}/${T_PKGAUR}" --noconfirm >/dev/null 2>&1
 validate "$?"
 
@@ -1210,7 +1211,7 @@ if [ -n "${AA_TFAN_CONFIG}" ]; then
 	validate "$?"
 
 	_AA_CMD="Install: Thinkfan (AUR)"
-	T_THINKFAN=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/thinkfan-git/ | /usr/bin/grep .tar.xz)
+	T_THINKFAN=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/thinkfan-git/ | /usr/bin/grep .pkg.tar.zst)
 	/usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/thinkfan-git/${T_THINKFAN}" --noconfirm >/dev/null 2>&1
 	validate "$?"
 
@@ -1256,7 +1257,7 @@ EOF
 validate "$?"
 
 _AA_CMD="Disable: Core Dumps"
-/usr/bin/cat > /mnt/etc/sysctl.d/50-coredump.conf << EOF
+/usr/bin/cat > /mnt/etc/sysctl.d/99-coredump.conf << EOF
 kernel.core_pattern=|/bin/false
 EOF
 /usr/bin/mkdir -p /mnt/etc/systemd/coredump.conf.d/
@@ -1302,13 +1303,13 @@ if [ -n "${AA_TLP_CONFIG}" ]; then
 	validate "$?"
 
 	_AA_CMD="Download: /etc/defaults/tlp"
-	/usr/bin/wget ${AA_TLP_CONFIG} -O /mnt/etc/default/tlp >/dev/null 2>&1
+	/usr/bin/wget "${AA_TLP_CONFIG}" -O /mnt/etc/default/tlp >/dev/null 2>&1
 	validate "$?"
 fi
 
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	_AA_CMD="Download: /etc/thinkpad.conf"
-	/usr/bin/wget ${AA_TFAN_CONFIG} -O /mnt/etc/thinkfan.conf >/dev/null 2>&1
+	/usr/bin/wget "${AA_TFAN_CONFIG}" -O /mnt/etc/thinkfan.conf >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Systemd: Enable (thinkfan.service)"
@@ -1330,10 +1331,10 @@ if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; the
 	validate "$?"
 
 	_AA_CMD="Config: Auditd"
-	/usr/bin/sed -i 's/active = no/active = yes/' /mnt/etc/audisp/plugins.d/syslog.conf
+	/usr/bin/sed -i 's/active = no/active = yes/' /mnt/etc/audit/plugins.d/syslog.conf
 	/usr/bin/mkdir -p /mnt/etc/audit/rules.d
 	/usr/bin/cat >> /mnt/etc/audit/rules.d/kyaulabs.rules << EOF
-# \$KYAULabs: kyaulabs.rules,v 1.0.2 2020/01/23 14:00:12 kyau Exp $
+# \$KYAULabs: kyaulabs.rules,v 1.0.2 2020/01/23 14:00:12 kyau Exp \$
 #
 # attribution: https://github.com/Neo23x0/auditd
 #			   https://linux-audit.com/tuning-auditd-high-performance-linux-auditing/
@@ -1577,42 +1578,15 @@ EOF
 	validate "$?"
 fi
 
-_AA_CMD="Security: USBGuard"
-/usr/bin/sed -i -e 's/IPCAllowedGroups=/IPCAllowedGroups=wheel/' -e 's/PresentControllerPolicy=keep/PresentControllerPolicy=apply-policy/' /mnt/etc/usbguard/usbguard-daemon.conf
-validate "$?"
+if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	_AA_CMD="Security: USBGuard"
+	/usr/bin/sed -i -e 's/IPCAllowedGroups=/IPCAllowedGroups=wheel/' -e 's/PresentControllerPolicy=keep/PresentControllerPolicy=apply-policy/' /mnt/etc/usbguard/usbguard-daemon.conf
+	validate "$?"
 
-_AA_CMD="Systemd: Enable (usbguard.service)"
-/usr/bin/arch-chroot /mnt systemctl enable usbguard.service >/dev/null 2>&1
-validate "$?"
-
-_AA_CMD="Systemd: Create (aidecheck.timer)"
-/usr/bin/cat > /mnt/etc/systemd/system/aide.service << EOF
-[Unit]
-Description=Aide Check
-
-[Service]
-Type=simple
-ExecStart=/usr/bin/aide --check
-
-[Install]
-WantedBy=multi-user.target
-EOF
-/usr/bin/cat > /mnt/etc/systemd/system/aide.timer << EOF
-[Unit]
-Description=Aide check every day at midnight
-
-[Timer]
-OnCalendar=*-*-* 00:00:00
-Unit=aide.service
-
-[Install]
-WantedBy=multi-user.target
-EOF
-validate "$?"
-
-_AA_CMD="Systemd: Enable (aide.timer)"
-/usr/bin/arch-chroot /mnt systemctl enable aide.timer >/dev/null 2>&1
-validate "$?"
+	_AA_CMD="Systemd: Enable (usbguard.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable usbguard.service >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="Systemd: Enable (haveged.service)"
 /usr/bin/arch-chroot /mnt systemctl enable haveged.service >/dev/null 2>&1
@@ -1628,7 +1602,7 @@ validate "$?"
 
 _AA_CMD="Create: /etc/ssh/sshd_config"
 /usr/bin/cat > /mnt/etc/ssh/sshd_config << EOF
-# \$KYAULabs: sshd_config,v 1.000 2019/07/26 14:18:25 kyau Exp \$
+# \$KYAULabs: sshd_config,v 1.0.0 2020/08/16 01:45:10 kyau Exp \$
 
 # https://cipherli.st/
 Port 4222
@@ -1717,63 +1691,100 @@ _AA_CMD="Modify: /etc/nftables.conf"
 /usr/bin/cat > /mnt/etc/nftables.conf << EOF
 #!/usr/bin/nft -f
 #
-# \$KYAULabs: nftables.conf,v 1.000 2019/07/26 14:22:07 kyau Exp \$
+# \$KYAULabs: nftables.conf,v 1.0.2 2020/09/13 21:04:39 kyau Exp \$
 # KYAU Labs - IPv4/IPv6 Firewall
 
 table inet filter {
 
 	set blacklist {
 		type ipv4_addr
+		flags constant, interval
+		auto-merge
 		elements = {
-			1.2.3.4
+			1.2.3.4/32
+		}
+	}
+
+	set blacklist6 {
+		type ipv6_addr
+		flags constant, interval
+		auto-merge
+		elements = {
+			2a01:8fe0::/32
 		}
 	}
 
 	chain input {
-		type filter hook input priority 0;
-
-		# allow established/related connections
-		ct state {established, related} accept
-
-		# early drop of invalid connections
-		ct state invalid drop
+		type filter hook input priority filter; policy drop;
 
 		# allow from loopback
 		iifname lo accept
 
-		# add blacklisted ips
-		ip saddr @blacklist drop
+		# early drop of invalid connections
+		ct state invalid drop
 
-		# no ping floods
+		# limit ping requests (10/second)
 		ip6 nexthdr icmpv6 icmpv6 type echo-request limit rate 10/second accept
 		ip protocol icmp icmp type echo-request limit rate 10/second accept
 
-		# allow ssh, but with brute force protection
+		# limit specific icmp types (5/second)
+		meta l4proto ipv6-icmp icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, mld-listener-query, mld-listener-report, mld-listener-reduction, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, ind-neighbor-solicit, ind-neighbor-advert, mld2-listener-report } limit rate 2/second accept comment "Allow ICMPv6"
+		meta l4proto icmp icmp type { destination-unreachable, router-solicitation, router-advertisement, time-exceeded, parameter-problem } limit rate 2/second accept comment "Allow ICMP"
+
+		# allow connections established/related by/to this machine
+		ct state { established, related } accept
+
+		# drop loopback connections not coming from loopback
+		iifname != lo ip6 daddr ::1/128 drop
+		iifname != lo ip daddr 127.0.0.1/8 drop
+
+		# add blacklisted ips
+		ip saddr @blacklist drop
+		ip6 saddr @blacklist6 drop
+
+		# drop all fragments
+		ip frag-off & 0x1fff != 0 counter drop
+
+		# force SYN checks
+		tcp flags & (fin|syn|rst|ack) != syn ct state new counter drop
+
+		# drop XMAS packets
+		tcp flags & (fin|syn|rst|psh|ack|urg) == fin|syn|rst|psh|ack|urg counter drop
+
+		# drop NULL packets
+		tcp flags & (fin|syn|rst|psh|ack|urg) == 0x0 counter drop
+
+		# limit ssh (15/minute)
 		tcp dport 4222 limit rate 15/minute accept
 
 		# allow http and https traffic
-		# tcp dport {http,https} accept
+		# tcp dport { http, https } accept
+
+		# allow nfs traffic
+		# meta l4proto { tcp, udp } th dport 2049 ip6 saddr { fd00::/8, fe80::/10 } accept comment "Allow NFS"
+		# meta l4proto { tcp, udp } th dport 2049 ip saddr { 10.0.0.0/24, 10.0.10.0/24 } accept comment "Allow NFS"
 
 		# allow traffic from specific ip's
-		# ip saddr { 1.2.3.4, 4.3.2.1 } tcp dport 1234 ct state new,established counter accept
+		# ip saddr { 1.2.3.4, 4.3.2.1 } tcp dport 1234 ct state { established, new } counter accept
 
 		# allow a range of ports
-		# ip dport { 1000-2000,3000-4000 } accept
+		# ip dport { 1000-2000, 3000-4000 } accept
 
 		# everything else (blackhole)
-		reject with icmp type port-unreachable
+		reject with icmpx type port-unreachable
 	}
 
 	# all forwarding traffic gets dropped (we are not a router)
 	chain forward {
-		type filter hook forward priority 0;
-		drop
+		type filter hook forward priority filter; policy drop;
 	}
 
 	# let all traffic outbound through the firewall
 	chain output {
-		type filter hook output priority 0;
-		accept
+		type filter hook output priority filter; policy drop;
+		ip6 nexthdr ipv6-icmp accept
+		ct state invalid drop
+		ct state { established, new, related } accept
 	}
 
 }
@@ -1823,8 +1834,9 @@ if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot <<EOF
 mount -o remount,rw /boot
 mkdir -p /boot/EFI/tools
-curl -L https://github.com/tianocore/edk2/releases/latest/download/ShellBinPkg.zip -o ShellBinPkg.zip > /dev/null 2>&1
+curl -L https://github.com/tianocore/edk2/releases/latest/download/edk2-stable201911/ShellBinPkg.zip -o ShellBinPkg.zip > /dev/null 2>&1
 7z x ShellBinPkg.zip && cp ShellBinPkg/UefiShell/X64/Shell.efi /boot/EFI/tools/shellx64.efi && rm -rf /root/ShellBinPkg*
+echo -e "title\tUEFI Shell x86_64 v2\nefi\t/EFI/tools/shellx64.efi" | tee /boot/loader/entries/uefi-shell.conf
 EOF
 fi
 if [ "${AA_XORG}" -eq "0" ]; then
@@ -1845,6 +1857,7 @@ if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 sensors-detect --auto
 runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S memtest86-efi --noedit --nodiff --noconfirm > /dev/null 2>&1" && cp /usr/share/memtest86-efi/bootx64.efi /boot/EFI/tools/memtest86.efi
 runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -Rs memtest86-efi --noconfirm > /dev/null 2>&1"
+echo -e "title\tMemtest86\nefi\t/EFI/tools/memtest86.efi" | tee /boot/loader/entries/memtest86.conf
 EOF
 fi
 if [ -f /root/firstboot.txt ]; then
@@ -1867,6 +1880,7 @@ if [ -n "${AA_TFAN_CONFIG}" ]; then
 	echo "pacman -Rs boost cmake" >> /mnt/root/firstboot
 fi
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	# shellcheck disable=SC2129
 	echo "runuser -l \"${AA_USERNAME}\" -c \"${AA_PKGMAN} -S addrwatch lynis-git --noconfirm\"" >> /mnt/root/firstboot
 	echo "sed -i -e 's/After=systemd-network-wait-online.service/After=network.target network-online.target/' -e 's/Wants=systemd-network-wait-online.service/Wants=network-online.target/' -e 's/addrwatch -q/addrwatch -P -q/' /usr/lib/systemd/system/addrwatch@.service" >> /mnt/root/firstboot
 	echo "systemctl enable addrwatch@eth0.service" >> /mnt/root/firstboot
@@ -1883,7 +1897,6 @@ runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S inetutils-git --noconfirm" >/dev
 rm -f /etc/sudoers.d/temporary
 rm -f /root/firstboot
 echo "-- AARCH: SECURITY --"
-aide -i && cp /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 rkhunter --propupd
 echo "-- AARCH: END --"
 systemctl disable firstboot.service

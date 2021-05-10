@@ -18,7 +18,7 @@ considerable amount of time depending on your CPU, if this is being executed
 in a virtualized environment it is recommended that you use `haveged`.
 
 ```shell
-ssh-keygen -G mtmp -b 2048 && ssh-keygen -T moduli -f mtmp && rm mtmp
+ssh-keygen -M generate -O bits=4096 moduli.c && ssh-keygen -M screen -f moduli.c moduli && rm moduli.c
 ```
 
 After the `moduli` has been generated the `example.aa` file can be edited for
@@ -34,8 +34,9 @@ Next decide if you want the script baked into an ISO or if you just want to
 build your own ARCHISO it will help to follow these guidelines:
 
 * Use `releng` as your base template.
-* Add the `git` package to the `packages.x86_64` file so that it will be
-installed an usable in the installation environment.
+* Add the `git` and `wget` packages to the `packages.x86_64` file so that it
+will be installed an usable in the installation environment.
+* Revert to traditional interface names with `ln -s /dev/null airootfs/etc/udev/rules.d/80-net-setup-link.rules`
 * `aarch`, `firstboot.txt` and `moduli` must be placed into in the `airootfs/root`
 directory prior to building and must be owned by root.
 * Include an `.aa` template file in the `airootfs/root` directory for script
@@ -49,7 +50,10 @@ Instructions for building your own image can be found
 [here](https://wiki.archlinux.org/index.php/Archiso).
 
 If instead you choose not to bake the script into an ISO, simply boot an
-existing ARCHISO and use `pacman` to install git. Then modify the root password
+existing ARCHISO, use the `E` key to edit the kernel commandline at the bootloader
+menu (Arch Linux install medium... / EFI Shell / Reboot Into...), adding
+`net.ifnames=0` to boot with traditional network interface names. Upon boot use
+`pacman -Syy git wget` to install git and wget. Then modify the root password
 and enable sshd. Finally SCP over to the machine `aarch`, `firstboot.txt`,
 `moduli` and an `.aa` template.
 

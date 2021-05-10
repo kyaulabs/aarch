@@ -1,0 +1,536 @@
+#!/bin/bash
+
+# $KYAULabs: kvm.pkg,v 1.1.8 2021/05/07 11:22:47 kyau Exp $
+# ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
+# █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
+# ■ ██▄▀ ██▄█ ██▄█ ██ █ ▀▀ ██   ██▄█ ██▄▀ ▀██▄ ■
+# █ ██ █ ▄▄ █ ██ █ ██ █    ██▄▄ ██ █ ██ █  ▄██ █
+# ▄ ▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    ▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  █
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
+#
+# KYAU Labs - KVM on Arch Linux
+# Copyright (C) 2021 KYAU Labs (https://kyaulabs.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+set -u
+IFS=$'\n\t'
+
+P_USERNAME="kyau"				# Username w/ virsh access
+P_DEPLOYMENT="development"		# "development", "integration", "staging", "production"
+P_LOCATION="Rack A1, Unit 5"	# Machine Datacenter Location
+P_NESTED=1						# Nested Virtualization
+P_HOST_INTERFACE="eth0"         # WAN/Host Interface
+P_INTERFACE="eth1"				# Bridge Interface
+P_MACADDR="00:00:1b:00:00:02"	# Bridge MAC Address
+P_NETLAN="10.0.10.0"            # /24 of the LAN (network of the host)
+P_NETKVM="10.1.0.0"             # /24 of the isolated KVM network
+P_HUGEPAGES=12					# RAM to reserve for VMs (in GB)
+P_RAID=1						# Use RAID10far2 before LVM
+P_DISKS=("/dev/nvme0n1" "/dev/nvme0n2")
+P_TLS=1							# Enable TLS for Spice
+P_CERTPASS="moomoo"				# Spice TLS Certificate Password
+P_CERT="/C=US/ST=WA/L=Seattle/O=KYAU Labs/OU=KVM"
+
+# Default Functions {{{
+function print_logo() {
+	printf "  [0;1;30m▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄[0m▄▄▄[1m▄▄\\n"
+	printf "  [30m█ [36m▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    [37m▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ [47m▀[40m\\n"
+	printf "  [30m█ [36m██ █ ██ █ ██ █ ██ █    [37m██   ██ █ ██ █ ██▀  [30m█\\n"
+	printf "  ■ [36m██▄▀ ██▄█ ██▄█ ██ █ [31;41m▀▀[1C[37;40m██   ██▄█ ██▄▀ ▀██▄ [30m■\\n"
+	printf "  █ [46m [36;40m█ █ [0;36m▄[1m▄ █ [46m [40m█ █ [46m [40m█ █    [47m [37m█[40m▄▄ [47m [40m█ █ [47m [40m█ █  [0m▄[1m██ [30m█\\n"
+	printf "  [37;47m▄[1C[0;36m▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    [37m▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  [1;30m█\\n"
+	printf "  [37m▀▀[0m▀▀▀[1;30m▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀[0m\\n\\n"
+	printf "  Automated KVM on \e[1;37mArch \e[0;36mLinux\e[0m\\n"
+	printf "  \e[0;38;5;8m- KYAU Labs Edition\\n\\n"
+}
+function desc() {
+	>&2 printf "\\x1b[0;36m\\u25ab\\x1b[1;36m\\u25aa \\x1b[1;37m%s\\x1b[0m" "${1}"
+}
+function validate() {
+	# if failure else success
+	if [[ "$1" -ne 0 ]]; then
+		>&2 printf "\\n \\x1b[31mx\\x1b[0m %s\\n\\n" "${P_CMD}"
+		if [[ -z ${2+x} ]]; then
+			exit 1
+		fi
+	else
+		>&2 printf " \\x1b[1;32m\\u221a\\x1b[0m"
+	fi
+}
+# }}}
+# Variables: Load/Prompt {{{
+P_REGEX='^[0-9]+$'
+_FIRST_BOOT="${HOME}/.kvm.first"
+# Username
+if [ -z ${P_USERNAME+x} ]; then
+	printf "Username [default: %s]: " "$(whoami)"
+	read -r P_USERNAME
+	if [ -z "$P_USERNAME" ]; then
+		P_USERNAME="$(whoami)"
+	fi
+fi
+# Deployment
+if [ -z ${P_DEPLOYMENT+x} ]; then
+	printf "Deployment (development, integration, staging, production) [default: development]: "
+	read -r P_DEPLOYMENT
+	if [ -z "$P_DEPLOYMENT" ]; then
+		P_DEPLOYMENT="development"
+	fi
+fi
+# Location
+if [ -z ${P_LOCATION+x} ]; then
+	printf "Location in Datacenter [default: N/A]: "
+	read -r P_LOCATION
+	if [ -z "$P_LOCATION" ]; then
+		P_LOCATION="N/A"
+	fi
+fi
+# Nested Virtualization
+if [ -z "${P_NESTED+x}" ]; then
+	printf "Enable Nested Virtualization? [default: 0]: "
+	read -r P_NESTED
+	if ! [[ $P_NESTED =~ $P_REGEX ]] ; then
+		P_NESTED=0
+	fi
+fi
+# Host Interface
+if [ -z "${P_HOST_INTERFACE+x}" ]; then
+	printf "Interface for WAN/Host [default: eth0]: "
+	read -r P_HOST_INTERFACE
+	if [ -z "$P_HOST_INTERFACE" ]; then
+		P_HOST_INTERFACE="eth0"
+	fi
+fi
+# Bridge Interface
+if [ -z "${P_INTERFACE+x}" ]; then
+	printf "Interface for KVM Bridge [default: eth1]: "
+	read -r P_INTERFACE
+	if [ -z "$P_INTERFACE" ]; then
+		P_INTERFACE="eth1"
+	fi
+fi
+# Bridge MAC Address
+if [ -z "${P_MACADDR+x}" ]; then
+	printf "MAC Address for KVM Bridge [default: 00:00:1b:00:00:00]: "
+	read -r P_MACADDR
+	if [ -z "$P_MACADDR" ]; then
+		P_MACADDR="00:00:1b:00:00:00"
+	fi
+fi
+# LAN Netmask
+if [ -z "${P_NETLAN+x}" ]; then
+    printf "LAN Netmask (without the /24) [default: 10.0.0.0]: "
+	read -r P_NETLAN
+	if [ -z "$P_NETLAN" ]; then
+		P_NETLAN="10.0.0.0"
+	fi
+fi
+# KVM Netmask
+if [ -z "${P_NETKVM+x}" ]; then
+    printf "KVM Netmask (without the /24) [default: 10.1.0.0]: "
+	read -r P_NETKVM
+	if [ -z "$P_NETKVM" ]; then
+		P_NETKVM="10.1.0.0"
+	fi
+fi
+# Hugepages
+if [ -z "${P_HUGEPAGES+x}" ]; then
+	printf "RAM to dedicate to VMs (in GB) [default: 8]: "
+	read -r P_HUGEPAGES
+	if ! [[ $P_HUGEPAGES =~ $P_REGEX ]] ; then
+	   P_HUGEPAGES=8
+	fi
+fi
+# RAID10far2
+if [ -z "${P_RAID+x}" ]; then
+	printf "Use RAID10far2 across KVM disks before LVM? [default: 0]: "
+	read -r P_RAID
+	if ! [[ $P_RAID =~ $P_REGEX ]] ; then
+		P_RAID=0
+	fi
+fi
+# KVM Disk(s)
+if [ -z "${P_DISKS+x}" ]; then
+	printf "Disk(s) or partitions to dedicate to the KVM LVM [default: ??]: "
+	IFS=' ' read -ra P_DISKS <<< "$IN"
+	if [ ${#P_DISKS[@]} -eq 0 ]; then
+		echo "ERROR: You must supply a disk or partition for the KVM LVM" && exit 1
+	fi
+fi
+# Enable TLS
+if [ -z "${P_TLS+x}" ]; then
+    printf "Enable TLS for Spice [default: 1]: "
+	read -r P_TLS
+	if ! [[ $P_TLS =~ $P_REGEX ]] ; then
+		P_TLS=1
+	fi
+fi
+# Spice TLS Certificate Password
+if [ -z "${P_CERTPASS+x}" ]; then
+    printf "Spice TLS Certificate Password [default: moo]: "
+	read -r P_CERTPASS
+	if [ -z "$P_CERTPASS" ]; then
+		P_CERTPASS="moo"
+	fi
+fi
+# TLS Certificate String
+if [ -z "${P_CERT+x}" ]; then
+    printf "TLS Certificate [default: N/A]: "
+	read -r P_CERT
+	if [ -z "$P_CERT" ]; then
+		P_CERT="/C=US/ST=WA/L=Seattle/O=KYAU Labs/OU=KVM"
+	fi
+fi
+# }}}
+# Variables: Summary {{{
+print_logo
+T_NESTED="false"
+if [ "${P_NESTED}" -eq "1" ]; then
+	T_NESTED="true"
+fi
+T_RAID="false"
+if [ "${P_RAID}" -eq "1" ]; then
+	T_RAID="true"
+fi
+T_DISKS=$( IFS=$' '; echo "${P_DISKS[*]}" )
+printf " \\x1b[38;5;255m┌\\x1b[38;5;242m────\\x1b[38;5;235m─·\\x1b[38;5;242m─\x1b[38;5;235m─·─────────────────────────────────────────────────┐\\n"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mUsername: \\x1b[38;5;240m%-40s\\x1b[0m \\x1b[38;5;237m░░░·\\x1b[0m\\n" "${P_USERNAME}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDeployment: \\x1b[38;5;240m%-40s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${P_DEPLOYMENT}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mLocation: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_LOCATION}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mNested Virtualization: \\x1b[38;5;240m%-5s   \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${T_NESTED}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mBridge NIC: \\x1b[38;5;240m%-6s  \\x1b[38;5;244mMAC Address: \\x1b[38;5;240m%-17s   \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_INTERFACE}" "${P_MACADDR}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mRAM Dedicated to Hugepages: \\x1b[38;5;240m%-24s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_HUGEPAGES}GB"
+printf " \\x1b[38;5;235m·\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mRAID10far2: \\x1b[38;5;240m%-40s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${T_RAID}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░░░ \\x1b[38;5;244mLVM Disk(s): \\x1b[38;5;240m%-39s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${T_DISKS}"
+printf " \\x1b[38;5;235m└─────────────────────────────────────────────·─\\x1b[38;5;242m─\\x1b[1;39m·─\\x1b[38;5;242m─\\x1b[1;39m─\\x1b[38;5;242m──────\\x1b[38;5;255m┘\\x1b[0m\\n"
+echo -e
+# }}}
+# Prereq: Sudo Password {{{
+echo "Enter the sudo password to cache for the script."
+sudo ls >/dev/null 2>&1
+echo -e
+#exit
+# }}}
+# First Run {{{
+if [ ! -f "${_FIRST_BOOT}" ]; then
+
+	# Prereq: Server Config {{{
+	desc "Server Config"
+
+	P_CMD="Config: Server Chassis"
+	sudo hostnamectl set-chassis server >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Config: Server Deployment"
+	sudo hostnamectl set-deployment ${P_DEPLOYMENT} >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Config: Datacenter Location"
+	sudo hostnamectl set-location ${P_LOCATION} >/dev/null 2>&1
+	validate "$?"
+
+    printf "\\n"
+	# }}}
+	# Prereq: Network Bridge {{{
+	desc "Network Bridge"
+
+	P_CMD="Create: /etc/libvirt/bridge-kvm0.xml"
+	echo -e "<network>\n\t<name>kvm0</name>\n\t<forward mode=\"bridge\" />\n\t<bridge name=\"kvm0\" />\n</network>" | sudo tee /etc/libvirt/bridge-kvm0.xml >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Permissions: /etc/libvirt/bridge-kvm0.xml"
+	sudo chmod a+r /etc/libvirt/bridge-kvm0.xml
+	validate "$?"
+
+	P_CMD="Create: /etc/systemd/network/${P_INTERFACE}.link"
+	echo -e "[Match]\nMACAddress=$(cat /sys/class/net/${P_INTERFACE}/address)\n\n[Link]\nName=${P_INTERFACE}" | sudo tee /etc/systemd/network/${P_INTERFACE}.link >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /etc/systemd/network/${P_INTERFACE}.network"
+	echo -e "[Match]\nName=${P_INTERFACE}\n\n[Network]\nBridge=kvm0" | sudo tee /etc/systemd/network/${P_INTERFACE}.network >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /etc/systemd/network/kvm0.netdev"
+	echo -e "[NetDev]\nName=kvm0\nKind=bridge\nMACAddress=${P_MACADDR}" | sudo tee /etc/systemd/network/kvm0.netdev >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /etc/systemd/network/kvm0.link"
+	echo -e "[Match]\nMACAddress=${P_MACADDR}\n\n[Link]\nName=kvm0" | sudo tee /etc/systemd/network/kvm0.link >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /etc/systemd/network/kvm0.network"
+	echo -e "[Match]\nName=kvm0\n\n[Network]\nDHCP=ipv4\nIPv6AcceptRA=no\nNTP=pool.ntp.org\n\n[DHCP]\nUseDNS=true\nUseDomains=true\n\n[Address]\nLabel=kvmbridge" | sudo tee /etc/systemd/network/kvm0.network >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Permissions: systemd-networkd configs"
+	sudo chmod a+r /etc/systemd/network/*
+	validate "$?"
+
+    printf "\\n"
+	# }}}
+	# User/Group Management {{{
+	desc "User/Group Management"
+
+	P_CMD="Adduser: kvm"
+	sudo useradd -g kvm -d / -s /usr/bin/nologin -u 78 kvm
+	validate "$?"
+
+	P_CMD="Modify: kvm gid=78"
+	sudo groupmod -g 78 kvm
+	validate "$?"
+
+	P_CMD="Modify: Add ${P_USERNAME} to KVM groups"
+	sudo usermod -a -G libvirt,kvm "${P_USERNAME}"
+	validate "$?"
+
+	P_CMD="Create: /etc/polkit-1/rules.d/50-libvirt.rules"
+	echo -e "/* Allow users in kvm group to manage the libvirt daemon without authentication */\npolkit.addRule(function(action, subject) {\n\tif (action.id == \"org.libvirt.unix.manage\" &&\n\t\tsubject.isInGroup(\"libvirt\")) {\n\t\t\treturn polkit.Result.YES;\n\t}\n});" | sudo tee /etc/polkit-1/rules.d/50-libvirt.rules >/dev/null 2>&1
+	validate "$?"
+
+    printf "\\n"
+	# }}}
+	# Hugepages {{{
+	desc "Hugepages"
+
+	P_CMD="Modify: /etc/fstab"
+	echo -e "\n# hugepages\nhugetlbfs\t/dev/hugepages\thugetlbfs\tmode=1770,gid=78\t0\t0" | sudo tee -a /etc/fstab >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /etc/sysctl.d/10-memory.conf"
+	echo -e "vm.nr_hugepages = 6144" | sudo tee /etc/sysctl.d/10-memory.conf >/dev/null 2>&1
+	validate "$?"
+
+    printf "\\n"
+	# }}}
+	# Paravirtualization & Nested Virtualization {{{
+	desc "Nested/Paravirtualization"
+
+	T_VIRTIO=""
+	if [ "${P_NESTED}" -eq "1" ]; then
+		P_CMD="Nested Virtualization"
+		T_CPU="$(grep 'vendor' /proc/cpuinfo | uniq | cut -d " " -f 2)"
+		if [ "${T_CPU^^}" = "AuthenticAMD" ]; then
+			T_VIRTIO="options kvm_amd nested=1\n"
+		elif [ "${T_CPU^^}" = "AuthenticIntel" ]; then
+			T_VIRTIO="options kvm_intel nested=1\n"
+		fi
+	fi
+
+	P_CMD="Paravirtualization"
+	echo -e "${T_VIRTIO}9pnet_virtio\nvirtio_net\nvirtio_pci" | sudo tee /etc/modules-load.d/virtio.conf >/dev/null 2>&1
+	validate "$?"
+
+    printf "\\n"
+	# }}}
+	# QEMU/KVM {{{
+	desc "QEMU/KVM"
+
+	P_CMD="Modify: /etc/fstab (remove hidepid)"
+	sudo sed -i 's/,hidepid=2,/,/' /etc/fstab
+	validate "$?"
+
+	P_CMD="Modify: /etc/libvirt/qemu.conf"
+	echo -e "\nuser = \"kvm\"\ngroup = \"kvm\"\nhugetlbfs_mount = \"/dev/hugepages\"\nnvram = [\n\t\"/usr/share/ovmf/x64/OVMF_CODE.fd:/usr/share/ovmf/x64/OVMF_VARS.fd\"\n]\n" | sudo tee -a /etc/libvirt/qemu.conf >/dev/null 2>&1
+	validate "$?"
+
+    printf "\\n"
+	# }}}
+	# Spice/TLS {{{
+	if [ "${P_TLS}" -eq "1" ]; then
+		desc "Spice/TLS"
+
+		T_KEY="server-key.pem"
+		T_STAMP="$(date +%s)"
+
+		P_CMD="Modify: /etc/libvirt/qemu.conf"
+		echo -e "\nspice_listen = \"0.0.0.0\"\nspice_tls = 1\nspice_tls_x509_cert_dir = \"/etc/pki/libvirt-spice\"" | sudo tee -a /etc/libvirt/qemu.conf >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Create: /etc/pki/libvirt-spice"
+		sudo mkdir -p /etc/pki/libvirt-spice && sudo chmod -R a+rx /etc/pki
+		validate "$?"
+
+		mkdir "tmp-${T_STAMP}" && cd "tmp-${T_STAMP}" || exit
+		P_CMD="Create: Private Key for CA"
+		if [ ! -e ca-key.pem ]; then openssl genrsa -des3 -passout pass:${P_CERTPASS} -out ca-key.pem 1024 >/dev/null 2>&1; fi
+		validate "$?"
+
+		P_CMD="Create: Certificate for CA"
+		if [ ! -e ca-cert.pem ]; then openssl req -new -x509 -days 1095 -key ca-key.pem -passin pass:${P_CERTPASS} -out ca-cert.pem -utf8 -subj "${P_CERT}/CN=CA.kyaulabs.com" >/dev/null 2>&1; fi
+		validate "$?"
+
+		P_CMD="Create: Private Key for Server"
+		if [ ! -e $T_KEY ]; then openssl genrsa -out $T_KEY 1024 >/dev/null 2>&1; fi
+		validate "$?"
+
+		P_CMD="Create: Certificate Signing Request for Server"
+		if [ ! -e server-key.csr ]; then openssl req -new -key $T_KEY -out server-key.csr -utf8 -subj "${P_CERT}/CN=$(hostnamectl | head -n 1 | grep -o '[^ ]\+$')" >/dev/null 2>&1; fi
+		validate "$?"
+
+		P_CMD="Create: Certificate for Server"
+		if [ ! -e server-cert.pem ]; then openssl x509 -req -days 1095 -in server-key.csr -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 -passin pass:${P_CERTPASS} -out server-cert.pem >/dev/null 2>&1; fi
+		validate "$?"
+
+		P_CMD="Create: Certificate without Passphrase"
+		openssl rsa -in $T_KEY -out $T_KEY.insecure >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Modify: Rename Certificated"
+		mv $T_KEY $T_KEY.secure && mv $T_KEY.insecure $T_KEY
+		validate "$?"
+
+		P_CMD="Move: Certificates to /etc/pki/libvirt-spice"
+		sudo mv ca-* server-* /etc/pki/libvirt-spice
+		validate "$?"
+
+		P_CMD="Permissions: /etc/pki/libvirt-spice"
+		sudo chmod 660 /etc/pki/libvirt-spice/* && sudo chown kvm:kvm /etc/pki/libvirt-spice/*
+		validate "$?"
+
+        printf "\\n"
+	fi
+	# }}}
+	sudo touch "${_FIRST_BOOT}"
+	printf "\\n\\n"
+	printf "\\t\\x1b[38;5;235m#\\x1b[0;31m sudo systemctl reboot\\n\\n"
+	printf "\\x1b[1;30mReboot the machine and the run this script again\\x1b[0m\\n\\n"
+# }}}
+# Second Run (Post Reboot) {{{
+else
+
+	if [ "${#P_DISKS[*]}" -gt 0 ]; then
+		# RAID Storage: VM {{{
+		desc "RAID Storage: VM"
+
+		P_CMD="Modify: Remount /boot (rw)"
+		sudo mount -o remount,rw /boot
+		validate "$?"
+
+		#pacman -Q 'mdadm' >/dev/null 2>&1
+		#if [[ "$?" -ne 0 ]]; then
+		if ! pacman -Q 'mdadm' >/dev/null 2>&1; then
+			sudo pacman -S mdadm --noconfirm >/dev/null 2>&1
+		fi
+
+		P_CMD="Create: /dev/md/KVM (RAID10far2, 512KB chunks)"
+		sudo mdadm --create --verbose --level=10 --metadata=1.2 --chunk=512 --raid-devices=2 --layout=f2 /dev/md/KVM "${P_DISKS[@]}" >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Create: /etc/mdadm.conf"
+		sudo mdadm --detail --scan | sudo tee /etc/mdadm.conf >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Modify: /etc/mkinitcpio.conf"
+		sudo sed -i "s/block sd-lvm2/block mdadm_udev sd-lvm2/" /etc/mkinitcpio.conf
+		validate "$?"
+
+		P_CMD="Create: LVM2 Physical Volume"
+		sudo pvcreate -ff --yes /dev/md/KVM >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Create: LVM2 Volume Group"
+		sudo vgcreate --yes vmpool /dev/md/KVM >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Create: LVM2 Thin Pool (512KB chunks)"
+		sudo lvcreate --yes -l +100%FREE -T vmpool/thin -c 512 -Zn >/dev/null 2>&1
+		validate "$?"
+
+        printf "\\n"
+	fi
+	# }}}
+	# libvirt {{{
+	desc "libvirt"
+
+	P_CMD="Enable: libvirtd.service"
+	sudo systemctl enable --now libvirtd.service >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /etc/libvirt/bridge-kvm0.xml"
+	echo -e "<network>\n\t<name>kvm0</name>\n\t<forward mode=\"bridge\" />\n\t<bridge name=\"kvm0\" />\n</network>" | sudo tee /etc/libvirt/bridge-kvm0.xml >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Permissions: /etc/libvirt/bridge-kvm0.xml"
+	sudo chmod 0644 /etc/libvirt/bridge-kvm0.xml
+	validate "$?"
+
+	P_CMD="Create: Virtual Network (kvm0)"
+	virsh net-define --file /etc/libvirt/bridge-kvm0.xml >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Modify: Turn On Autostart for Virtual Network"
+	virsh net-autostart kvm0 >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /srv/isoimages /srv/backup"
+	sudo mkdir -p /srv/isoimages /srv/backup
+	validate "$?"
+
+	P_CMD="Permissions: /srv/isoimages /srv/backup"
+	sudo chown kvm:kvm /srv/isoimages /srv/backup && sudo chmod g+rwx /srv/isoimages /srv/backup
+	validate "$?"
+
+	P_CMD="Create: /etc/libvirt/pool-isoimages.vol"
+	echo -e "<pool type=\"dir\">\n\t<name>isoimages</name>\n\t<target>\n\t\t<path>/srv/isoimages</path>\n\t\t<permissions>\n\t\t\t<mode>0770</mode>\n\t\t\t<owner>78</owner>\n\t\t\t<group>78</group>\n\t\t</permissions>\n\t</target>\n</pool>" | sudo tee /etc/libvirt/pool-isoimages.vol >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Create: /etc/libvirt/pool-isoimages.vol"
+	sudo chmod 0644 /etc/libvirt/pool-isoimages.vol
+	validate "$?"
+
+	P_CMD="Create: Storage Pool (isoimages)"
+	virsh pool-define /etc/libvirt/pool-isoimages.vol >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Build: Storage Pool"
+	virsh pool-build isoimages >/dev/null 2>&1
+	validate "$?"
+
+	P_CMD="Modify: Turn On Autostart for Storage Pool"
+	virsh pool-autostart isoimages >/dev/null 2>&1
+	validate "$?"
+
+    printf "\\n"
+	# }}}
+	# Nftables {{{
+	desc "Nftables"
+
+	P_CMD="Create: /etc/sysctl.d/75-router.conf"
+	echo -e "net.ipv4.ip_forward=1\nnet.ipv4.conf.${P_HOST_INTERFACE}.forwarding=1\nnet.ipv6.conf.default.forwarding=1\nnet.ipv6.conf.all.forwarding=1" | sudo tee /etc/sysctl.d/75-router.conf > /dev/null 2>&1
+	validate "$?"
+
+    P_CMD="Allow: Spice from LAN (${P_NETLAN}/24)"
+    sudo sed -i "s/# everything else (blackhole)/# allow spice connections from lan\n\t\tip saddr ${P_NETLAN}\/24 tcp dport 5900-5999 accept\n\t\t# everything else (blackhole)/" /etc/nftables.conf
+    validate "$?"
+
+    P_CMD="Allow: NAT Forwarding"
+    sudo sed -i "s/type filter hook forward priority filter; policy drop;/type filter hook forward priority filter; policy drop;\n\t\tip saddr ${P_NETKVM}\/24 oifname \"${P_HOST_INTERFACE}\" ip daddr ${P_NETLAN}\/24 drop\n\t\tip saddr ${P_NETKVM}\/24 iifname \"kvm0\" oifname \"${P_HOST_INTERFACE}\" accept\n\t\tip daddr ${P_NETKVM}\/24 iifname \"${P_HOST_INTERFACE}\" ct state {established, related} accept\n\t\treject with icmpx type port-unreachable/" /etc/nftables.conf
+    validate "$?"
+
+    P_CMD="Enable: NAT Masquerade"
+    sudo sed -i "s/# vim: ft=conf sts=4 sw=4 ts=4 noet:/table inet nat \{\n\tchain prerouting \{\n\t\ttype nat hook prerouting priority dstnat; policy accept;\n\t\}\n\n\tchain postrouting \{\n\t\ttype nat hook postrouting priority srcnat; policy accept;\n\t\toifname \"${P_HOST_INTERFACE}\" masquerade\n\t\}\n\}\n\n# vim: ft=conf sts=4 sw=4 ts=4 noet:/" /etc/nftables.conf
+    validate "$?"
+
+    printf "\\n"
+	# }}}
+	sudo rm "${_FIRST_BOOT}"
+	printf "\\n\\n"
+	printf "\\t\\x1b[38;5;235m#\\x1b[0;31m sudo systemctl reboot\\n\\n"
+	printf "\\x1b[1;30mReboot the machine to finalize the installation\\x1b[0m\\n\\n"
+fi
+# }}}
+
+# vim: ft=sh sts=4 sw=4 ts=4 noet:
