@@ -1,0 +1,827 @@
+#!/bin/bash
+
+# $KYAULabs: nginx.pkg,v 1.2.5 2021/05/19 23:26:19 kyau Exp $
+# ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
+# █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
+# ■ ██▄▀ ██▄█ ██▄█ ██ █ ▀▀ ██   ██▄█ ██▄▀ ▀██▄ ■
+# █ ██ █ ▄▄ █ ██ █ ██ █    ██▄▄ ██ █ ██ █  ▄██ █
+# ▄ ▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    ▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  █
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
+#
+# KYAU Labs - AArch: NGINX Package
+# Copyright (C) 2021 KYAU Labs (https://kyaulabs.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+set -u
+IFS=$'\n\t'
+
+P_DEVWEB="0"					# Web Server Development Mode
+P_USERNAME="kyau"				# Username w/ http admin access
+P_PASSWD="moo"					# Password for http/sql admin
+P_ROOTDIR="/srv"				# Directory that will be symlinked to /nginx
+P_TZ="America/Los_Angeles"		# Default machine timezone
+P_IPS=()						# Ex. P_IPS("1.2.3.4" "4.3.2.1")
+								# External IPs with HTTP-only access
+								# All IPs are pulled from system if blank
+								# First IP is selected as Primary
+P_DOMAINS=()					# Ex. P_DOMAINS=("domain1.com" "domain2.net")
+								# Domains that are hosted on this machine
+								# When empty domain is selected from hostname
+
+# Default Functions {{{
+function print_logo() {
+	printf "  [0;1;30m▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄[0m▄▄▄[1m▄▄\\n"
+	printf "  [30m█ [36m▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    [37m▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ [47m▀[40m\\n"
+	printf "  [30m█ [36m██ █ ██ █ ██ █ ██ █    [37m██   ██ █ ██ █ ██▀  [30m█\\n"
+	printf "  ■ [36m██▄▀ ██▄█ ██▄█ ██ █ [31;41m▀▀[1C[37;40m██   ██▄█ ██▄▀ ▀██▄ [30m■\\n"
+	printf "  █ [46m [36;40m█ █ [0;36m▄[1m▄ █ [46m [40m█ █ [46m [40m█ █    [47m [37m█[40m▄▄ [47m [40m█ █ [47m [40m█ █  [0m▄[1m██ [30m█\\n"
+	printf "  [37;47m▄[1C[0;36m▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    [37m▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  [1;30m█\\n"
+	printf "  [37m▀▀[0m▀▀▀[1;30m▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀[0m\\n\\n"
+	printf "  Automated \e[1;37mArch \e[0;36mLinux\\n"
+	printf "  \e[0;38;5;8m- KYAU Labs Edition\\n"
+	printf "  \e[0;38;5;8m- Package: \e[0mNGINX\\n\\n"
+}
+function desc() {
+	>&2 printf "\\x1b[0;36m\\u25ab\\x1b[1;36m\\u25aa \\x1b[1;37m%s\\x1b[0m" "${1}"
+}
+function validate() {
+	# if failure else success
+	if [[ "$1" -ne 0 ]]; then
+		>&2 printf "\\n \\x1b[31mx\\x1b[0m %s\\n\\n" "${P_CMD}"
+		if [[ -z ${2+x} ]]; then
+			exit 1
+		fi
+	else
+		>&2 printf " \\x1b[1;32m\\u221a\\x1b[0m"
+	fi
+}
+# }}}
+# dhparam Verification {{{
+if [ ! -f dhparam4096.pem ]; then
+	print_logo
+	printf "  \\x1b[38;5;124m‼ Missing DH parameters (dhparam4096.pem)\\n\\n\\x1b[0m  Run the following command to generate:\\n"
+	printf "  \\x1b[38;5;235m#\\x1b[38;5;244m openssl dhparam -out dhparam4096.pem 4096\\n\\n"
+	exit 1
+fi
+P_PWD=$(pwd)
+# }}}
+# Variables: Load/Prompt {{{
+P_REGEX='^[0-9]+$'
+# Development Web Server
+if [ -z "${P_DEVWEB+x}" ]; then
+	printf "Enable Development Mode? [default: 0]: "
+	read -r P_DEVWEB
+	if ! [[ $P_DEVWEB =~ $P_REGEX ]] ; then
+		P_DEVWEB=0
+	fi
+fi
+# Username
+if [ -z ${P_USERNAME+x} ]; then
+	printf "Username [default: %s]: " "$(whoami)"
+	read -r P_USERNAME
+	if [ -z "$P_USERNAME" ]; then
+		P_USERNAME="$(whoami)"
+	fi
+fi
+# User Password (Also SQL Root)
+if [ -z ${P_PASSWD+x} ]; then
+	printf "User password [default: moo]: "
+	read -r P_PASSWD
+	if [ -z "$P_PASSWD" ]; then
+		P_PASSWD="moo"
+	fi
+fi
+# Root Directory
+if [ -z "${P_ROOTDIR+x}" ]; then
+    printf "NGINX Root Directory [default: /]: "
+	read -r P_ROOTDIR
+	if [ -z "$P_ROOTDIR" ]; then
+		P_ROOTDIR="/"
+	fi
+fi
+# Timezone
+if [ -z ${P_TZ+x} ]; then
+	printf "Timezone [default: America/Los_Angeles]: "
+	read -r P_TZ
+	if [ -z "$P_TZ" ]; then
+		P_TZ="America/Los_Angeles"
+	fi
+fi
+# IPs
+if [ -z "${P_IPS+x}" ]; then
+	printf "External IPs [default: all]: "
+	read -r P_IPS
+	if [ -z "$P_IPS" ]; then
+		IN=$(ip -4 -o addr show scope global | awk '{gsub(/\/.*/,"",$4); print $4}' | tr '\r\n' ' ')
+		IFS=' ' read -ra P_IPS <<< "$IN"
+	else
+		IFS=' ' read -ra P_IPS <<< "${P_IPS[@]}"
+	fi
+fi
+# Domains
+if [ "${#P_DOMAINS[*]}" -eq 0 ]; then
+	T_DOMAIN=$(hostname | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
+	P_DOMAINS=("${T_DOMAIN}")
+fi
+
+# }}}
+# Variables: Summary {{{
+print_logo
+T_DEVWEB="false"
+if [ "${P_DEVWEB}" -eq "1" ]; then
+	T_DEVWEB="true"
+fi
+T_PASSWD=$(head -c ${#P_PASSWD} < /dev/zero | tr '\0' '*')
+T_DOMAINS=$( IFS=$' '; echo "${P_DOMAINS[*]}" )
+printf " \\x1b[38;5;255m┌\\x1b[38;5;242m────\\x1b[38;5;235m─·\\x1b[38;5;242m─\x1b[38;5;235m─·─────────────────────────────────────────────────┐\\n"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mUsername: \\x1b[38;5;240m%-40s\\x1b[0m \\x1b[38;5;237m░░░·\\x1b[0m\\n" "${P_USERNAME}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-42s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${T_PASSWD}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDevelopment Mode: \\x1b[38;5;240m%-34s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${T_DEVWEB}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mRoot Directory: \\x1b[38;5;240m%-36s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_ROOTDIR}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mTimezone: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_TZ}"
+printf " \\x1b[38;5;235m·\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mExternal IPs: \\x1b[38;5;240m%-38s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_IPS[@]}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░░░ \\x1b[38;5;244mDomain(s): \\x1b[38;5;240m%-41s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${T_DOMAINS}"
+printf " \\x1b[38;5;235m└─────────────────────────────────────────────·─\\x1b[38;5;242m─\\x1b[1;39m·─\\x1b[38;5;242m─\\x1b[1;39m─\\x1b[38;5;242m──────\\x1b[38;5;255m┘\\x1b[0m\\n"
+echo -e
+# }}}
+# Prereq: Sudo Password {{{
+echo "Enter the sudo password to cache for the script."
+sudo ls >/dev/null 2>&1
+echo -e
+#exit
+# }}}
+# Installation {{{
+desc "Installation"
+
+P_CMD="Install: Remount /tmp with +exec"
+sudo mount -o exec,remount /tmp >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Install: NGINX/PHP/SQL"
+pikaur -S apache-tools composer cronie curl mariadb minify nginx php-fpm sassc wget --noedit --nodiff --noconfirm >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Install: PHP Modules"
+T_PKG=(php-gd php-geoip php-imagick php-intl php-memcache php-odbc php-sqlite php-sodium)
+if [ "${P_DEVWEB}" -eq "1" ]; then
+	T_PKG+=(xdebug)
+fi
+pikaur -S "${T_PKG[@]}" --noedit --nodiff --noconfirm >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Install: Create Web Server Environment"
+sudo mkdir -p ${P_ROOTDIR}/nginx/conf.d ${P_ROOTDIR}/nginx/https/ip ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/sql ${P_ROOTDIR}/nginx/ssl ${P_ROOTDIR}/nginx/vhosts.d
+validate "$?"
+
+if [ "${P_ROOTDIR}" != "/" ]; then
+	P_CMD="Install: Directory Symlink"
+	cd / && sudo ln -s ${P_ROOTDIR}/nginx . >/dev/null 2>&1
+	validate "$?"
+fi
+
+P_CMD="Install: Permissions"
+sudo chown -R http:http /nginx && sudo chmod -R 770 /nginx && sudo chown mysql:mysql /nginx/sql && sudo chmod 750 /nginx/sql && sudo chmod 755 /nginx
+validate "$?"
+
+P_CMD="Install: Add User to Web Group"
+sudo gpasswd -a "${P_USERNAME}" http >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Install: Change http user shell"
+sudo chsh -s /bin/bash http >/dev/null 2>&1
+validate "$?"
+
+printf "\\n"
+# }}}
+# MariaDB Config {{{
+desc "SQL Config"
+
+P_CMD="SQL: Add User to SQL Group"
+sudo gpasswd -a "${P_USERNAME}" mysql >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Initialize Datastore"
+sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/nginx/sql >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Config Datastore"
+sudo sed -i 's/^\[mysqld\]$/\[mysqld\]\ndatadir=\/nginx\/sql/' /etc/my.cnf.d/server.cnf >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Enable Systemd Service"
+sudo systemctl enable --now mariadb.service >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Change Root Password"
+sudo mysql -e "SET PASSWORD FOR root@localhost = PASSWORD('${P_PASSWD}')" >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Remove Test Users"
+sudo mysql -e "DELETE FROM mysql.user WHERE User=''" >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Restrict Remote Access"
+sudo mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')" >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Drop Test Databases"
+sudo mysql -e "DROP DATABASE IF EXISTS test" >/dev/null 2>&1
+validate "$?"
+
+P_CMD="SQL: Create User"
+sudo mysql -e "CREATE USER '${P_USERNAME}'@'localhost' IDENTIFIED BY '${P_PASSWD}';GRANT ALL PRIVILEGES ON *.* TO '${P_USERNAME}'@'localhost' WITH GRANT OPTION;FLUSH PRIVILEGES" >/dev/null 2>&1
+validate "$?"
+
+printf "\\n"
+# }}}
+# PHP Config {{{
+desc "PHP Config"
+
+P_CMD="PHP: Remove Default Pool"
+sudo rm /etc/php/php-fpm.d/www.conf >/dev/null 2>&1
+validate "$?"
+
+P_CMD="PHP: php-fpm defaults"
+
+sudo tee -a /etc/php/php-fpm.d/defaults.inc << EOF >/dev/null 2>&1
+; \$KYAULabs: defaults.inc,v 1.0.0 2021/05/14 12:17:04 kyau Exp \$
+
+user = http
+group = http
+listen = /run/php-fpm/php-fpm-\$pool.sock
+listen.owner = http
+listen.group = http
+; process configuration
+pm = dynamic
+pm.max_children = 5
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+; php.ini changes
+php_admin_flag[expose_php] = off
+php_admin_flag[log_errors] = on
+php_admin_flag[short_open_tag] = on
+php_admin_value[date.timezone] = ${P_TZ}
+php_admin_value[error_log] = /nginx/logs/\$pool/php.log
+php_admin_value[memory_limit] = 256M
+php_admin_value[post_max_size] = 2048M
+php_admin_value[session.save_path] = /tmp
+php_admin_value[upload_max_filesize] = 2048M
+
+; vim: ft=dosini sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
+P_CMD="PHP: Enable 3rd Party Extensions"
+sudo find /etc/php/conf.d -type f -name '*.ini' -exec sed -i -e 's/^;extension/extension/g' -e 's/^;zend_extension/zend_extension/g' -e 's/^;xdebug/xdebug/g' {} + >/dev/null 2>&1
+validate "$?"
+
+P_CMD="PHP: Enable Default Extensions"
+sudo install -g root -m 644 -o root /dev/null /etc/php/conf.d/defaults.ini
+sudo tee -a /etc/php/conf.d/defaults.ini << EOF >/dev/null 2>&1
+; \$KYAULabs: defaults.ini,v 1.0.0 2021/05/14 12:46:48 kyau Exp \$
+
+extension=bz2
+extension=exif
+extension=gd
+extension=gettext
+extension=gmp
+extension=iconv
+extension=intl
+extension=sodium
+extension=mysqli
+extension=odbc
+extension=pdo_mysql
+extension=pdo_odbc
+extension=pdo_sqlite
+extension=sockets
+extension=sqlite3
+; opcache
+zend_extension=opcache
+opcache.enable = 1
+opcache.interned_strings_buffer = 8
+opcache.max_accelerated_files = 10000
+opcache.memory_consumption = 128
+opcache.save_comments = 1
+opcache.revalidate_freq = 1
+
+; vim: ft=dosini sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
+P_CMD="PHP: Create conf.d/fastcgi_params"
+sudo install -g http -m 660 -o http /dev/null /nginx/conf.d/fastcgi_params >/dev/null 2>&1
+validate "$?"
+
+P_CMD="PHP: Config conf.d/fastcgi_params"
+sudo tee -a /nginx/conf.d/fastcgi_params << EOF >/dev/null 2>&1
+# \$KYAULabs: fastcgi_params,v 1.0.5 2021/05/03 17:31:37 kyau Exp \$
+
+fastcgi_param	QUERY_STRING		\$query_string;
+fastcgi_param	REQUEST_METHOD		\$request_method;
+fastcgi_param	CONTENT_TYPE		\$content_type;
+fastcgi_param	CONTENT_LENGTH		\$content_length;
+
+fastcgi_param	SCRIPT_FILENAME		\$request_filename;
+fastcgi_param	SCRIPT_NAME		\$fastcgi_script_name;
+fastcgi_param	REQUEST_URI		\$request_uri;
+fastcgi_param	DOCUMENT_URI		\$document_uri;
+fastcgi_param	DOCUMENT_ROOT		\$document_root;
+fastcgi_param	SERVER_PROTOCOL		\$server_protocol;
+fastcgi_param	REQUEST_SCHEME		\$scheme;
+fastcgi_param	HTTPS			\$https if_not_empty;
+
+fastcgi_param	GATEWAY_INTERFACE	CGI/1.1;
+#fastcgi_param	SERVER_SOFTWARE		nginx/\$nginx_version;
+fastcgi_param	SERVER_SOFTWARE		nginx;
+
+fastcgi_param	REMOTE_ADDR		\$remote_addr;
+fastcgi_param	REMOTE_PORT		\$remote_port;
+fastcgi_param	SERVER_ADDR		${P_IPS[0]};
+fastcgi_param	SERVER_PORT		\$server_port;
+fastcgi_param	SERVER_NAME		\$server_name;
+
+# PHP only, required if PHP was built with --enable-force-cgi-redirect
+fastcgi_param	REDIRECT_STATUS		200;
+
+# Mitigate https://httpoxy.org/ vulnerabilities
+fastcgi_param	HTTP_PROXY		"";
+
+# vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
+printf "\\n"
+# }}}
+# NGINX Config {{{
+desc "NGINX Config"
+
+P_CMD="NGINX: MIME Types"
+sudo install -g http -m 660 -o http /etc/nginx/mime.types /nginx/conf.d/mime.types >/dev/null 2>&1
+validate "$?"
+
+P_CMD="NGINX: System Config"
+echo "include /nginx/nginx.conf;" | sudo tee /etc/nginx/nginx.conf >/dev/null 2>&1
+validate "$?"
+
+P_CMD="NGINX: Create nginx.conf"
+sudo install -g http -m 660 -o http /dev/null /nginx/nginx.conf >/dev/null 2>&1
+validate "$?"
+
+P_CMD="NGINX: Config nginx.conf"
+sudo tee -a /nginx/nginx.conf << EOF >/dev/null 2>&1
+# \$KYAULabs: nginx.conf,v 1.1.7 2021/05/03 18:14:27 kyau Exp \$
+
+# Help / Additional Info {{{
+# always test configuration before reload!
+# $ sudo nginx -t
+# reload the configuration by using reload not restart!
+# $ sudo systemctl reload nginx
+# https://www.nginx.com/resources/wiki/start/topics/tutorials/config_pitfalls/
+# }}}
+
+# enables the use of "just-in-time compilation" for the regular expressions
+# known by the time of configuration parsing
+pcre_jit on;
+# user and group credentials used by worker processes
+user http http;
+# number of worker processes (auto will autodetect number of CPU cores)
+worker_processes auto;
+# binds worker processes automatically to available CPUs
+worker_cpu_affinity auto;
+# number of file descriptors used for nginx
+worker_rlimit_nofile 65535;
+
+events {
+	# worker process will accept one/all (off/on) connection(s) at a time
+	multi_accept on;
+	# maximum number of simultaneous connections that can be opened by a worker
+	worker_connections 4096;
+}
+
+http {
+	# mime types
+	include /nginx/conf.d/mime.types;
+	# to boost I/O on HDD we can disable access logs
+	access_log off;
+	# read and send using multi-threading, without blocking a worker process
+	aio threads;
+	# hide index pages
+	autoindex off;
+	# add to 'Content-Type' response header
+	charset utf-8;
+	# request timed out -- default 60
+	client_body_timeout 10;
+	# sets the maximum allowed size of the client request body -- default 1
+	client_max_body_size 16m;
+	# default mime type
+	default_type text/plain;
+	# enable gzipping of responses
+	gzip on;
+	# disables gzipping of responses for msie6 and below
+	gzip_disable "msie6";
+	# minimum length of a response that will be gzipped -- default 20
+	gzip_min_length 1024;
+	# gzip compression level -- default 1
+	gzip_comp_level 6;
+	gzip_vary on;
+	gzip_proxied expired no-cache no-store private auth;
+	# text/html is always compressed
+	gzip_types
+		text/css
+		text/javascript
+		text/xml
+		text/x-component
+		application/javascript
+		application/x-javascript
+		application/json
+		application/xml
+		application/rss+xml
+		application/atom+xml
+		font/truetype
+		font/opentype
+		application/vnd.ms-fontobject
+		image/svg+xml;
+	# files that will be used as an index, checked in the specified order
+	index index.php index.html index.htm index.txt;
+	# enables keep-alive connections with all browsers
+	keepalive_disable none;
+	# keep-alive client connections stay active for -- default 75
+	keepalive_timeout 30s;
+	# specifies log format
+	log_format main
+		'\$remote_addr - \$remote_user [\$time_local] '
+		'"\$request" \$status \$body_bytes_sent '
+		'"\$http_referer" "\$http_user_agent"';
+	# disables logging of errors about not found files into error_log
+	log_not_found off;
+	# cache open file descriptors, directories and file lookup errors
+	open_file_cache max=10240 inactive=20s;
+	open_file_cache_valid 30s;
+	open_file_cache_min_uses 2;
+	open_file_cache_errors on;
+	# allow the server to close connection on non responding client, this will
+	# free up memory
+	reset_timedout_connection on;
+	# if client stops responding, free up memory -- default 60
+	send_timeout 8;
+	# copies data between one FD and other from within the kernel faster than
+	# read() + write()
+	sendfile on;
+	# bucket size for the server names hash tables
+	server_names_hash_bucket_size 128;
+	# disables emitting nginx version on error pages and in the "server"
+	# response header field
+	server_tokens off;
+	# send headers in one piece, it is better than sending them one by one
+	tcp_nopush on;
+	# don't buffer data sent, good for small data bursts in real time
+	tcp_nodelay on;
+	# hash table maximum size -- default 1024
+	types_hash_max_size 4096;
+
+	# include domain configuration files
+	include /nginx/vhosts.d/*.conf;
+
+	# redirect all non-encrypted (http) traffic to encrypted (https)
+	server {
+		server_name _;
+		listen *:80 default_server;
+		listen [::]:80 default_server;
+		return 301 https://\$host\$request_uri;
+	}
+}
+
+# vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
+P_CMD="NGINX: Create conf.d/vhost.defaults"
+sudo install -g http -m 660 -o http /dev/null /nginx/conf.d/vhost.defaults >/dev/null 2>&1
+validate "$?"
+
+P_CMD="NGINX: Config conf.d/vhost.defaults"
+sudo tee -a /nginx/conf.d/vhost.defaults << EOF >/dev/null 2>&1
+# \$KYAULabs: vhost.defaults,v 1.0.7 2021/05/16 12:48:55 kyau Exp \$
+
+## SSL/TLS (https://cipherlist.dev/)
+ssl_dhparam /nginx/ssl/dhparam4096.pem; # openssl dhparam -out dhparam4096.pem 4096
+ssl_protocols TLSv1.3; # Requires nginx >= 1.13.0
+ssl_ciphers EECDH+CHACHA20:EECDH+AES;
+ssl_ecdh_curve X25519; # Requires nginx >= 1.1.0
+ssl_session_cache shared:SSL:10m;
+ssl_session_tickets off; # Requires nginx >= 1.5.9
+ssl_session_timeout 10m;
+ssl_stapling on; # Requires nginx >= 1.3.7
+ssl_stapling_verify on; # Requires nginx >= 1.3.7
+ssl_prefer_server_ciphers on;
+resolver 1.1.1.1 1.0.0.1 [2606:4700:4700::1111] [2606:4700:4700::1001] valid=60s; # Change if you run your own DNS servers
+resolver_timeout 2s;
+
+# security settings
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+add_header X-Frame-Options DENY;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+
+# vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
+P_CMD="NGINX: Create conf.d/uri.defaults"
+sudo install -g http -m 660 -o http /dev/null /nginx/conf.d/uri.defaults >/dev/null 2>&1
+validate "$?"
+
+P_CMD="NGINX: Config conf.d/uri.defaults"
+sudo tee -a /nginx/conf.d/uri.defaults << EOF >/dev/null 2>&1
+# \$KYAULabs: uri.defaults,v 1.0.3 2021/05/16 12:46:22 kyau Exp \$
+
+# remove \`robots.txt\` and all favicons from the logs
+location ~* "^/(favicon\.\S{3,5}|robots\.txt)$" {
+    access_log off;
+    allow all;
+    log_not_found off;
+}
+
+# disable dot (hidden) files while allowing \`.well-known\`
+location ~* /\.(?!well-known).* {
+    access_log off;
+    deny all;
+    log_not_found off;
+}
+
+# deny access to any sensitive material
+location ~* (?:#.*#|\.(?:bak|conf|dist|fla|in[ci]|log|orig|phps|psd|sass|scss|sh|sql|sw[op])|~)\$ {
+    access_log on;
+    deny all;
+    log_not_found on;
+}
+
+# asset/media cache
+location ~* \.(?:css(\.map)?|js(\.map)?|jpe?g|png|gif|ico|cur|heic|webp|tiff?|mp3|m4a|aac|ogg|midi?|wav|mp4|mov|webm|mpe?g|avi|ogv|flv|wmv)\$ {
+    access_log off;
+    expires 7d;
+}
+
+# fonts/svg cache and access
+location ~* \.(?:svgz?|ttf|ttc|otf|eot|woff2?)\$ {
+    access_log off;
+    add_header Access-Control-Allow-Origin "*";
+    expires 7d;
+}
+
+# html processing
+location ~* \.html\$ {
+    try_files \$uri \$uri/ /index.html =404;
+}
+
+# http error pages
+error_page 404 /404;
+error_page 500 502 503 504 /50x;
+location = /404 {
+    root /nginx/https/error;
+    index 404.php;
+}
+location = /50x {
+    root /nginx/https/error;
+    index 50x.php;
+}
+
+# vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
+P_CMD="NGINX: External IPs"
+for ip in "${P_IPS[@]}"; do
+	ip2=${ip//./_}
+	sudo tee -a "/nginx/vhosts.d/ip-${ip2}.conf" << EOF >/dev/null 2>&1
+# \$KYAULabs: ip-${ip2}.conf,v 1.0.0 2021/05/16 15:48:44 kyau Exp \$
+
+server {
+	listen 80;
+	server_name ${ip};
+
+	root /nginx/https/ip;
+}
+
+# vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+done
+validate "$?"
+
+printf "\\n"
+# }}}
+# Domains {{{
+desc "Domain Config"
+
+if [ "${#P_DOMAINS[*]}" -gt 0 ]; then
+	for i in "${P_DOMAINS[@]}"; do
+		l_domain=$i
+		l_name=${i//./_}
+
+		P_CMD="Domains: Create PHP-FPM Pool"
+		sudo install -g root -m 644 -o root /dev/null "/etc/php/php-fpm.d/${l_name}.conf" >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Domains: PHP-FPM Pool Config"
+		sudo tee -a "/etc/php/php-fpm.d/${l_name}.conf" << EOF >/dev/null 2>&1
+; \$KYAULabs: ${l_name}.conf,v 1.0.1 2021/05/16 12:46:46 kyau Exp \$
+
+[${l_name}]
+include = /etc/php/php-fpm.d/defaults.inc
+env[HOSTNAME] = ${l_domain}
+env[PATH] = /usr/local/bin:/usr/bin:/bin
+env[TMP] = /tmp
+env[TMPDIR] = /tmp
+env[TEMP] = /tmp
+
+; vim: ft=dosini sts=4 sw=4 ts=4 noet :
+EOF
+		validate "$?"
+
+		P_CMD="Domains: NGINX Config Permissions"
+		sudo install -g http -m 660 -o http /dev/null "/nginx/vhosts.d/${l_name}.conf" >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Domains: Create NGINX Config"
+		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
+# \$KYAULabs: ${l_name}.conf,v 1.1.6 2021/05/16 12:47:14 kyau Exp \$
+
+## Redirect all WWW to Non-WWW (SSL)
+server {
+	listen *:443 ssl http2;
+	listen [::]:443 ssl http2;
+	server_name www.${l_domain};
+
+	#access_log /nginx/logs/${l_name}/www-access.log;
+	error_log /nginx/logs/${l_name}/www-error.log;
+
+	ssl_certificate /etc/letsencrypt/live/${l_domain}/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/${l_domain}/privkey.pem;
+	ssl_trusted_certificate /etc/letsencrypt/live/${l_domain}/chain.pem;
+
+	include /nginx/conf.d/vhost.defaults;
+
+	return 301 https://${l_domain}\$request_uri;
+}
+
+## ${l_domain}
+server {
+	listen *:443 ssl http2;
+	listen [::]:443 ssl http2;
+	server_name ${l_domain};
+
+	#access_log /nginx/logs/${l_name}/${l_name}-access.log;
+	error_log /nginx/logs/${l_name}/${l_name}-error.log;
+
+	ssl_certificate /etc/letsencrypt/live/${l_domain}/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/${l_domain}/privkey.pem;
+	ssl_trusted_certificate /etc/letsencrypt/live/${l_domain}/chain.pem;
+
+	include /nginx/conf.d/vhost.defaults;
+
+	root /nginx/https/${l_name}/www;
+
+	location / {
+		try_files \$uri \$uri/ @rewrite;
+	}
+
+	location @rewrite {
+		#rewrite ^/directory/\$ /script.php?x=directory last;
+	}
+
+	#location ^~ /app/ {
+		#proxy_pass http://127.0.0.1:8080/;
+		#proxy_http_version 1.1;
+		#proxy_set_header Connection "upgrade";
+		#proxy_set_header Upgrade \$http_upgrade;
+		#proxy_set_header X-Forwarded-For \$remote_addr;
+		#proxy_set_header X-Forwarded-Proto \$scheme;
+		# by defaults nginx times out connections in one minute
+		#proxy_read_timeout 1d;
+	#}
+
+	include /nginx/conf.d/uri.defaults;
+
+	# php scripts
+	location ~* [^/]\.php(/|\$) {
+		try_files \$fastcgi_script_name =404;
+		include /nginx/conf.d/fastcgi_params;
+		fastcgi_buffers 8 16k;
+		fastcgi_buffer_size 32k;
+		fastcgi_index index.php;
+		fastcgi_split_path_info ^(.+?\.php)(/.*)\$;
+		fastcgi_pass unix:/run/php-fpm/php-fpm-${l_name}.sock;
+	}
+}
+
+## api.${l_domain}
+server {
+	listen *:443 ssl http2;
+	listen [::]:443 ssl http2;
+	server_name api.${l_domain};
+
+	#access_log /nginx/logs/${l_name}/api-access.log;
+	error_log /nginx/logs/${l_name}/api-error.log;
+
+	ssl_certificate /etc/letsencrypt/live/${l_domain}/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/${l_domain}/privkey.pem;
+	ssl_trusted_certificate /etc/letsencrypt/live/${l_domain}/chain.pem;
+
+	include /nginx/conf.d/vhost.defaults;
+
+	root /nginx/https/${l_name}/api;
+
+	location / {
+		try_files \$uri \$uri/ @rewrite;
+	}
+
+	location @rewrite {
+		#rewrite ^/directory/\$ /script.php?x=directory last;
+	}
+
+	include /nginx/conf.d/uri.defaults;
+
+	# php scripts
+	location ~* [^/]\.php(/|\$) {
+		try_files \$fastcgi_script_name =404;
+		include /nginx/conf.d/fastcgi_params;
+		fastcgi_buffers 8 16k;
+		fastcgi_buffer_size 32k;
+		fastcgi_index index.php;
+		fastcgi_split_path_info ^(.+?\.php)(/.*)\$;
+		fastcgi_pass unix:/run/php-fpm/php-fpm-${l_name}.sock;
+	}
+}
+
+# vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+		validate "$?"
+
+		P_CMD="Domains: Create Directories"
+		sudo mkdir -p "${P_ROOTDIR}/nginx/logs/${l_name}" "${P_ROOTDIR}/nginx/https/${l_name}/api" "${P_ROOTDIR}/nginx/https/${l_name}/www" >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Domains: Directory Permissions"
+		sudo chmod -R 770 ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/https >/dev/null 2>&1
+		validate "$?"
+	done
+fi
+
+printf "\\n"
+# }}}
+# Services {{{
+desc "Services"
+
+P_CMD="Services: Enable PHP-FPM Systemd Service"
+sudo systemctl enable php-fpm.service >/dev/null 2>&1
+validate "$?"
+P_CMD="Services: Enable NGINX Systemd Service"
+sudo systemctl enable nginx.service >/dev/null 2>&1
+validate "$?"
+
+printf "\\n"
+# }}}
+# Finalize {{{
+desc "Finalize"
+
+P_CMD="Finalize: Remount /tmp with noexec"
+sudo mount -o noexec,remount /tmp >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Finalize: Directory Permissions"
+sudo chown -R http:http ${P_ROOTDIR}/nginx/conf.d/ ${P_ROOTDIR}/nginx/https/ ${P_ROOTDIR}/nginx/logs/ ${P_ROOTDIR}/nginx/ssl/ ${P_ROOTDIR}/nginx/vhosts.d/
+
+if [ "${#P_IPS[*]}" -gt 0 ]; then
+	P_CMD="Finalize: External IPs Permissions"
+	sudo chmod -R 660 ${P_ROOTDIR}/nginx/vhosts.d && sudo chown -R http:http ${P_ROOTDIR}/nginx/vhosts.d && sudo chmod 770 ${P_ROOTDIR}/nginx/vhosts.d >/dev/null 2>&1
+	validate "$?"
+fi
+
+P_CMD="Finalize: Enable Firewall Access to NGINX"
+sudo sed -i "s/^\t\t# tcp dport { http, https } accept/\t\ttcp dport { http, https } accept/" /etc/nftables.conf >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Finalize: DH Parameters"
+sudo install -g http -m 640 -o http "${P_PWD}/dhparam4096.pem" "${P_ROOTDIR}/nginx/ssl/dhparam4096.pem"
+validate "$?"
+# }}}
+
+printf "\\n\\n"
+printf "\\t\\x1b[38;5;235m#\\x1b[0;31m sudo systemctl reboot\\n\\n"
+printf "\\x1b[1;30mReboot the machine to complete the installation\\x1b[0m\\n\\n"
+
+# vim: ft=sh sts=4 sw=4 ts=4 noet:

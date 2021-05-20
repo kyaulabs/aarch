@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.5.6 2021/05/07 22:47:48 kyau Exp $
+# $KYAULabs: aarch,v 2.5.8 2021/05/19 12:38:55 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -832,9 +832,9 @@ if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 fi
 _STRING=("-i" "-e" "s/^MODULES=()/MODULES=(${_MODULES})/")
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-encrypt sd-lvm2 filesystems/")
+	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-encrypt lvm2 filesystems/")
 else
-	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-lvm2 filesystems/")
+	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block lvm2 filesystems/")
 fi
 /usr/bin/sed "${_STRING[@]}" /mnt/etc/mkinitcpio.conf >/dev/null 2>&1
 validate "$?"
@@ -1825,6 +1825,7 @@ _AA_CMD="Create: /root/firstboot"
 echo "-- AARCH: START --"
 mandb
 timedatectl set-ntp true
+ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 localectl set-locale LANG=en_US.UTF-8
 usbguard generate-policy > /etc/usbguard/rules.conf
 echo "-- AARCH: BOOTLOADER --"
@@ -1850,6 +1851,11 @@ runuser -l "${AA_USERNAME}" -c "mkdir -m700 -p ~/.gnupg/ && echo 'standard-resol
 sleep 5
 runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S acct --noedit --nodiff --noconfirm > /dev/null 2>&1"
 systemctl --now enable acct.service
+EOF
+fi
+if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+	/usr/bin/cat >> /mnt/root/firstboot <<EOF
+systemctl enable --now serial-getty@ttyS0.service
 EOF
 fi
 if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
