@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: nginx.pkg,v 1.2.5 2021/05/19 23:26:19 kyau Exp $
+# $KYAULabs: nginx.pkg,v 1.2.9 2021/05/26 01:12:54 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -30,7 +30,7 @@ IFS=$'\n\t'
 
 P_DEVWEB="0"					# Web Server Development Mode
 P_USERNAME="kyau"				# Username w/ http admin access
-P_PASSWD="moo"					# Password for http/sql admin
+P_PASSWD="changeme"				# Password for http/sql admin
 P_ROOTDIR="/srv"				# Directory that will be symlinked to /nginx
 P_TZ="America/Los_Angeles"		# Default machine timezone
 P_IPS=()						# Ex. P_IPS("1.2.3.4" "4.3.2.1")
@@ -149,7 +149,7 @@ T_DOMAINS=$( IFS=$' '; echo "${P_DOMAINS[*]}" )
 printf " \\x1b[38;5;255m┌\\x1b[38;5;242m────\\x1b[38;5;235m─·\\x1b[38;5;242m─\x1b[38;5;235m─·─────────────────────────────────────────────────┐\\n"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mUsername: \\x1b[38;5;240m%-40s\\x1b[0m \\x1b[38;5;237m░░░·\\x1b[0m\\n" "${P_USERNAME}"
 printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mPassword: \\x1b[38;5;240m%-42s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${T_PASSWD}"
-printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDevelopment Mode: \\x1b[38;5;240m%-34s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${T_DEVWEB}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDevelopment Mode: \\x1b[38;5;240m%-34s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${T_DEVWEB}"
 printf " \\x1b[38;5;235m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mRoot Directory: \\x1b[38;5;240m%-36s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_ROOTDIR}"
 printf " \\x1b[38;5;235m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mTimezone: \\x1b[38;5;240m%-42s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_TZ}"
 printf " \\x1b[38;5;235m·\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mExternal IPs: \\x1b[38;5;240m%-38s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_IPS[@]}"
@@ -171,15 +171,15 @@ sudo mount -o exec,remount /tmp >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Install: NGINX/PHP/SQL"
-pikaur -S apache-tools composer cronie curl mariadb minify nginx php-fpm sassc wget --noedit --nodiff --noconfirm >/dev/null 2>&1
+pikaur -Syy apache-tools composer cronie curl mariadb minify nginx php-fpm sassc wget --noedit --nodiff --noconfirm >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Install: PHP Modules"
-T_PKG=(php-gd php-geoip php-imagick php-intl php-memcache php-odbc php-sqlite php-sodium)
+T_PKG=(librsvg php-apcu php-gd php-geoip php-imagick php-imap php-intl php-memcache php-odbc php-smbclient php-sodium php-sqlite)
 if [ "${P_DEVWEB}" -eq "1" ]; then
 	T_PKG+=(xdebug)
 fi
-pikaur -S "${T_PKG[@]}" --noedit --nodiff --noconfirm >/dev/null 2>&1
+pikaur -Syy "${T_PKG[@]}" --noedit --nodiff --noconfirm >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Install: Create Web Server Environment"
@@ -292,8 +292,10 @@ validate "$?"
 P_CMD="PHP: Enable Default Extensions"
 sudo install -g root -m 644 -o root /dev/null /etc/php/conf.d/defaults.ini
 sudo tee -a /etc/php/conf.d/defaults.ini << EOF >/dev/null 2>&1
-; \$KYAULabs: defaults.ini,v 1.0.0 2021/05/14 12:46:48 kyau Exp \$
+; \$KYAULabs: defaults.ini,v 1.0.1 2021/05/24 12:00:39 kyau Exp \$
 
+extension=apcu
+extension=bcmath
 extension=bz2
 extension=exif
 extension=gd
@@ -309,6 +311,11 @@ extension=pdo_odbc
 extension=pdo_sqlite
 extension=sockets
 extension=sqlite3
+; apc
+apc.enabled = 1
+apc.shm_size = 32M
+apc.ttl = 7200
+apc.enable_cli = 1
 ; opcache
 zend_extension=opcache
 opcache.enable = 1

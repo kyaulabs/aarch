@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.5.8 2021/05/19 12:38:55 kyau Exp $
+# $KYAULabs: aarch,v 2.5.9 2021/05/24 12:39:24 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -1151,7 +1151,7 @@ printf "\\n"
 # Config: Package Defaults {{{
 desc "Config: [0mPackage Defaults"
 _AA_CMD="Modify: /etc/pacman.conf"
-/usr/bin/sed -i 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
+/usr/bin/sed -i -e 's/#Color/Color/' -e 's/#CacheDir    = \/var\/cache\/pacman\/pkg\//CacheDir = \/var\/cache\/makepkg\//' /mnt/etc/pacman.conf >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Modify: /etc/makepkg.conf"

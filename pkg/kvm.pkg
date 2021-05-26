@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: kvm.pkg,v 1.2.0 2021/05/19 12:39:20 kyau Exp $
+# $KYAULabs: kvm.pkg,v 1.2.1 2021/05/26 02:40:35 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -40,8 +40,8 @@ P_NETKVM="10.1.0.0"             # /24 of the isolated KVM network
 P_HUGEPAGES=12					# RAM to reserve for VMs (in GB)
 P_RAID=1						# Use RAID10far2 before LVM
 P_DISKS=("/dev/nvme0n1" "/dev/nvme0n2")
-P_TLS=1							# Enable TLS for Spice
-P_CERTPASS="moomoo"				# Spice TLS Certificate Password
+P_TLS=0							# Enable TLS for Spice
+P_CERTPASS="changeme"			# Spice TLS Certificate Password
 P_CERT="/C=US/ST=WA/L=Seattle/O=KYAU Labs/OU=KVM"
 
 # Default Functions {{{

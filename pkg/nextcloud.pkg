@@ -1,0 +1,455 @@
+#!/bin/bash
+
+# $KYAULabs: nextcloud.pkg,v 1.1.1 2021/05/26 01:12:45 kyau Exp $
+# ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+# █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
+# █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
+# ■ ██▄▀ ██▄█ ██▄█ ██ █ ▀▀ ██   ██▄█ ██▄▀ ▀██▄ ■
+# █ ██ █ ▄▄ █ ██ █ ██ █    ██▄▄ ██ █ ██ █  ▄██ █
+# ▄ ▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    ▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  █
+# ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
+#
+# KYAU Labs - AArch: Nextcloud Package
+# Copyright (C) 2021 KYAU Labs (https://kyaulabs.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+set -u
+IFS=$'\n\t'
+
+P_BACKEND="mysql"				# Database backend: mysql, pgsql or sqlite
+P_DATADIR="/srv/nextcloud"		# Path to the Nextcloud data directory
+P_VHOST="cloud.kyaulabs.com"	# Virtual Hostname for the web server
+P_DBNAME="nextcloud"			# Name of database
+P_DBHOST="localhost"			# Database hostname
+P_DBUSER="nextcloud"			# User name to connect to database
+P_DBPASS="changeme"				# Password of the database user
+P_PASSWD="changeme"				# Password for the admin account
+
+C_DBUSER="root"					# Current SQL user with create user permission
+C_DBPASS="changeme"				# Current SQL user password
+
+# Default Functions {{{
+function print_logo() {
+	printf "  [0;1;30m▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄[0m▄▄▄[1m▄▄\\n"
+	printf "  [30m█ [36m▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    [37m▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ [47m▀[40m\\n"
+	printf "  [30m█ [36m██ █ ██ █ ██ █ ██ █    [37m██   ██ █ ██ █ ██▀  [30m█\\n"
+	printf "  ■ [36m██▄▀ ██▄█ ██▄█ ██ █ [31;41m▀▀[1C[37;40m██   ██▄█ ██▄▀ ▀██▄ [30m■\\n"
+	printf "  █ [46m [36;40m█ █ [0;36m▄[1m▄ █ [46m [40m█ █ [46m [40m█ █    [47m [37m█[40m▄▄ [47m [40m█ █ [47m [40m█ █  [0m▄[1m██ [30m█\\n"
+	printf "  [37;47m▄[1C[0;36m▀▀ ▀ ▀▀▀▀ ▀▀ ▀ ▀▀▀▀    [37m▀▀▀▀ ▀▀ ▀ ▀▀▀▀ ▀▀▀  [1;30m█\\n"
+	printf "  [37m▀▀[0m▀▀▀[1;30m▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀[0m\\n\\n"
+	printf "  Automated \e[1;37mArch \e[0;36mLinux\\n"
+	printf "  \e[0;38;5;8m- KYAU Labs Edition\\n"
+	printf "  \e[0;38;5;8m- Package: \e[0mNextcloud\\n\\n"
+}
+function desc() {
+	>&2 printf "\\x1b[0;36m\\u25ab\\x1b[1;36m\\u25aa \\x1b[1;37m%s\\x1b[0m" "${1}"
+}
+function validate() {
+	# if failure else success
+	if [[ "$1" -ne 0 ]]; then
+		>&2 printf "\\n \\x1b[31mx\\x1b[0m %s\\n\\n" "${P_CMD}"
+		if [[ -z ${2+x} ]]; then
+			exit 1
+		fi
+	else
+		>&2 printf " \\x1b[1;32m\\u221a\\x1b[0m"
+	fi
+}
+function check_pkg() {
+	pkg="$1"
+	check="$(sudo pacman -Qs --color always "${pkg}" | grep "local" | grep "${pkg} ")"
+	if [ -n "${check}" ]; then
+		echo 0
+		return
+	fi
+	echo 1
+	return
+}
+# }}}
+# Package Verification {{{
+REQ_PKGS=("mariadb" "nginx" "php-fpm")
+T_PKGS=()
+for pkg in "${REQ_PKGS[@]}"; do
+	if [[ $(check_pkg "${pkg}") -ne 0 ]]; then
+		T_PKGS+=("${pkg}")
+	fi
+done
+if [[ "${#T_PKGS[@]}" -ne 0 ]]; then
+	print_logo
+	printf "  \\x1b[38;5;124m‼ Missing installed packages\\n\\n\\x1b[0m sudo pacman -S %s.\\n\\n" "${T_PKGS[*]}"
+	exit 1
+fi
+# }}}
+# Variables: Load/Prompt {{{
+# Database Backend
+if [ -z ${P_BACKEND+x} ]; then
+	printf "Database Backend (mysql/pgsql/sqlite) [default: %s]: " "mysql"
+	read -r P_BACKEND
+	if [ -z "$P_BACKEND" ]; then
+		P_BACKEND="mysql"
+	fi
+fi
+# Nextcloud Data Directory
+if [ -z ${P_DATADIR+x} ]; then
+	printf "Data Directory [default: %s]: " "/srv/nextcloud"
+	read -r P_DATADIR
+	if [ -z "$P_DATADIR" ]; then
+		P_DATADIR="/srv/nextcloud"
+	fi
+fi
+# Virtual Host
+if [ -z ${P_VHOST+x} ]; then
+	printf "Web Server Virtual Host [default: %s]: " "$(hostname)"
+	read -r P_VHOST
+	if [ -z "$P_VHOST" ]; then
+		P_VHOST="$(hostname)"
+	fi
+fi
+# Database Name
+if [ -z ${P_DBNAME+x} ]; then
+	printf "Database Name [default: %s]: " "nextcloud"
+	read -r P_DBNAME
+	if [ -z "$P_DBNAME" ]; then
+		P_DBNAME="nextcloud"
+	fi
+fi
+# Database Hostname
+if [ -z ${P_DBHOST+x} ]; then
+	printf "Database Hostname [default: %s]: " "localhost"
+	read -r P_DBHOST
+	if [ -z "$P_DBHOST" ]; then
+		P_DBHOST="localhost"
+	fi
+fi
+# Database Username
+if [ -z ${P_DBUSER+x} ]; then
+	printf "Database Username [default: %s]: " "$(whoami)"
+	read -r P_DBUSER
+	if [ -z "$P_DBUSER" ]; then
+		P_DBUSER="$(whoami)"
+	fi
+fi
+# Database Password
+if [ -z ${P_DBPASS+x} ]; then
+	printf "Database Password [default: %s]: " "password"
+	read -r P_DBPASS
+	if [ -z "$P_DBPASS" ]; then
+		P_DBPASS="/srv/nextcloud"
+	fi
+fi
+# Nextcloud Admin Password
+if [ -z ${P_PASSWD+x} ]; then
+	printf "Admin Password [default: %s]: " "admin"
+	read -r P_PASSWD
+	if [ -z "$P_PASSWD" ]; then
+		P_PASSWD="admin"
+	fi
+fi
+# }}}
+# Variables: Summary {{{
+print_logo
+T_DBPASS=$(head -c ${#P_DBPASS} < /dev/zero | tr '\0' '*')
+T_PASSWD=$(head -c ${#P_PASSWD} < /dev/zero | tr '\0' '*')
+printf " \\x1b[38;5;255m┌\\x1b[38;5;242m────\\x1b[38;5;235m─·\\x1b[38;5;242m─\x1b[38;5;235m─·─────────────────────────────────────────────────┐\\n"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDatabase Backend: \\x1b[38;5;240m%-32s\\x1b[0m \\x1b[38;5;237m░░░·\\x1b[0m\\n" "${P_BACKEND}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mData Directory: \\x1b[38;5;240m%-36s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m:\\x1b[0m\\n" "${P_DATADIR}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mVirtual Host: \\x1b[38;5;240m%-38s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_VHOST}"
+printf " \\x1b[38;5;242m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDatabase Name: \\x1b[38;5;240m%-37s\\x1b[0m \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_DBNAME}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDatabase Host: \\x1b[38;5;240m%-37s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_DBHOST}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDatabase Username: \\x1b[38;5;240m%-33s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${P_DBUSER}"
+printf " \\x1b[38;5;235m·\\x1b[38;5;237m░\\x1b[0m   \\x1b[38;5;244mDatabase Password: \\x1b[38;5;240m%-33s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${T_DBPASS}"
+printf " \\x1b[38;5;235m│\\x1b[38;5;237m░░░ \\x1b[38;5;244mAdmin Password: \\x1b[38;5;240m%-36s \\x1b[38;5;237m░\\x1b[38;5;242m│\\x1b[0m\\n" "${T_PASSWD}"
+printf " \\x1b[38;5;235m└─────────────────────────────────────────────·─\\x1b[38;5;242m─\\x1b[1;39m·─\\x1b[38;5;242m─\\x1b[1;39m─\\x1b[38;5;242m──────\\x1b[38;5;255m┘\\x1b[0m\\n"
+echo -e
+# }}}
+# Prereq: Sudo Password {{{
+echo "Enter the sudo password to cache for the script."
+sudo ls >/dev/null 2>&1
+echo -e
+#exit
+# }}}
+# Prerequisites {{{
+desc "Prerequisites"
+
+P_CMD="PreReq: Install Packages"
+# nextcloud-app-notify_push for lower impact of desktop/web clients
+pikaur -Syy nextcloud nextcloud-app-bookmarks nextcloud-app-calendar nextcloud-app-contacts nextcloud-app-deck nextcloud-app-mail nextcloud-app-news nextcloud-app-spreed nextcloud-app-tasks nextcloud-app-files-markdown nextcloud-app-keeweb nextcloud-app-totp nextcloud-app-breezedark --noedit --nodiff --noconfirm >/dev/null 2>&1
+validate "$?"
+
+P_CMD="PreReq: Create Environment"
+sudo mkdir -m 750 -p ${P_DATADIR}/apps ${P_DATADIR}/data >/dev/null 2>&1
+validate "$?"
+
+P_CMD="PreReq: Environmental Permissions"
+sudo chown -R nextcloud:nextcloud ${P_DATADIR} >/dev/null 2>&1
+validate "$?"
+
+printf "\\n"
+# }}}
+# Database Setup {{{
+if [ ! "${P_BACKEND^^}" = "SQLITE" ]; then
+	desc "Database"
+
+	if [ "${P_BACKEND^^}" = "MYSQL" ]; then
+
+		P_CMD="Database: Create '${P_DBUSER}' SQL user"
+		mysql -u ${C_DBUSER} -p${C_DBPASS} -e "CREATE DATABASE ${P_DBNAME} DEFAULT CHARACTER SET 'utf8mb4' COLLATE 'utf8mb4_general_ci';" >/dev/null 2>&1
+		validate "$?"
+
+		P_CMD="Database: Modify '${P_DBUSER}' SQL permissions"
+		mysql -u ${C_DBUSER} -p${C_DBPASS} -e "GRANT ALL PRIVILEGES ON ${P_DBNAME}.* TO '${P_DBUSER}'@'localhost' IDENTIFIED BY '${P_DBPASS}'; FLUSH PRIVILEGES;" >/dev/null 2>&1
+		validate "$?"
+
+	elif [ "${P_BACKEND^^}" = "PGSQL" ]; then
+		# TODO: PostgreSQL Parts
+		echo "pgsql" >/dev/null 2>&1
+	fi
+
+	printf "\\n"
+
+fi
+# }}}
+# Installation {{{
+desc "Installation"
+
+P_CMD="Install: Nextcloud"
+occ maintenance:install --database "${P_BACKEND}" --database-name "${P_DBNAME}" --database-host "${P_DBHOST}" --database-user "${P_DBUSER}" --database-pass "${P_DBPASS}" --data-dir "${P_DATADIR}" --admin-user "admin" --admin-pass "${P_PASSWD}" >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Install: PHP-FPM Service Override"
+sudo mkdir -p /etc/systemd/system/php-fpm.service.d
+sudo tee /etc/systemd/system/php-fpm.service.d/override.conf << EOF >/dev/null 2>&1
+# \$KYAULabs: override.conf,v 1.0.0 2021/05/24 13:05:14 kyau Exp \$
+
+[Service]
+ReadWritePaths=${P_DATADIR}
+ReadWritePaths=/etc/webapps/nextcloud/config
+# Optional: add to use internal update process
+#ReadWritePaths=/usr/share/webapps/nextcloud
+
+# vim: ft=dosini sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
+P_CMD="Install: Create PHP-FPM pool"
+sudo tee -a /etc/php/php-fpm.d/nextcloud.conf << EOF >/dev/null 2>&1
+; \$KYAULabs: nextcloud.conf,v 1.0.3 2021/05/23 23:18:12 kyau Exp \$
+
+[nextcloud]
+include = /etc/php/php-fpm.d/defaults.inc
+user = nextcloud
+group = nextcloud
+env[HOSTNAME] = cloud.kyaulabs.com
+env[PATH] = /usr/local/bin:/usr/bin:/bin
+env[TMP] = /tmp
+env[TMPDIR] = /tmp
+env[TEMP] = /tmp
+php_admin_flag[output_buffering] = off
+php_admin_value[max_execution_time] = 3600
+php_admin_value[max_input_time] = 3600
+php_admin_value[memory_limit] = 512M
+php_admin_value[post_max_size] = 8G
+php_admin_value[upload_max_filesize] = 8G
+
+; vim: ft=dosini sts=4 sw=4 ts=4 noet :
+EOF
+
+P_CMD="Install: Reload Systemd Service Files"
+sudo systemctl daemon-reload >/dev/null 2>&1
+validate "$?"
+
+printf "\\n"
+# }}}
+# Config {{{
+l_domain=$(echo "${P_VHOST}" | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
+l_name=${l_domain//./_}
+desc "Config"
+
+P_CMD="Config: Nginx vhost config"
+sudo tee -a /nginx/vhosts.d/nextcloud.conf << EOF >/dev/null 2>&1
+# \$KYAULabs: nextcloud.conf,v 1.0.3 2021/05/24 18:10:03 kyau Exp \$
+
+## ${P_VHOST}
+server {
+	listen *:443 ssl http2;
+	listen [::]:443 ssl http2;
+	server_name ${P_VHOST};
+
+	#access_log /nginx/logs/nextcloud/nginx-access.log;
+	error_log /nginx/logs/nextcloud/nginx-error.log;
+
+	ssl_certificate /etc/letsencrypt/live/${l_domain}/fullchain.pem;
+	ssl_certificate_key /etc/letsencrypt/live/${l_domain}/privkey.pem;
+	ssl_trusted_certificate /etc/letsencrypt/live/${l_domain}/chain.pem;
+
+	## SSL/TLS (https://cipherlist.dev/)
+	ssl_dhparam /nginx/ssl/dhparam4096.pem; # openssl dhparam -out dhparam4096.pem 4096
+	ssl_protocols TLSv1.3; # Requires nginx >= 1.13.0
+	ssl_ciphers EECDH+CHACHA20:EECDH+AES;
+	ssl_ecdh_curve X25519; # Requires nginx >= 1.1.0
+	ssl_session_cache shared:SSL:10m;
+	ssl_session_tickets off; # Requires nginx >= 1.5.9
+	ssl_session_timeout 10m;
+	ssl_stapling on; # Requires nginx >= 1.3.7
+	ssl_stapling_verify on; # Requires nginx >= 1.3.7
+	ssl_prefer_server_ciphers on;
+	resolver 1.1.1.1 1.0.0.1 [2606:4700:4700::1111] [2606:4700:4700::1001] valid=60s; # Change if you run your own DNS servers
+	resolver_timeout 2s;
+
+	add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+	add_header Referrer-Policy "no-referrer" always;
+
+	add_header X-Content-Type-Options "nosniff" always;
+	add_header X-Download-Options "noopen" always;
+	add_header X-Frame-Options "SAMEORIGIN" always;
+	add_header X-Permitted-Cross-Domain-Policies "none" always;
+	add_header X-Robots-Tag "none" always;
+	add_header X-XSS-Protection "1; mode=block" always;
+
+	fastcgi_hide_header X-Powered-By;
+	client_max_body_size 512M;
+	gzip_vary on;
+	gzip_comp_level 4;
+	gzip_min_length 256;
+	gzip_proxied expired no-cache no-store private no_last_modified no_etag auth;
+	gzip_types application/atom+xml application/javascript application/json application/ld+json application/manifest+json application/rss+xml application/vnd.geo+json application/vnd.ms-fontobject application/x-font-ttf application/x-web-app-manifest+json application/xhtml+xml application/xml font/opentype image/bmp image/svg+xml image/x-icon text/cache-manifest text/css text/plain text/vcard text/vnd.rim.location.xloc text/vtt text/x-component text/x-cross-domain-policy;
+
+	root /usr/share/webapps/nextcloud;
+
+	index index.php index.html /index.php\$request_uri;
+
+	location = / {
+		if ( \$http_user_agent ~ ^DavClient ) {
+			return 302 /remote.php/webdav/\$is_args\$args;
+		}
+	}
+
+	location = /robots.txt {
+		allow all;
+		log_not_found off;
+		access_log off;
+	}
+
+	location ^~ /.well-known {
+		location = /.well-known/carddav { return 301 /remote.php/dav/; }
+		location = /.well-known/caldav  { return 301 /remote.php/dav/; }
+		location /.well-known/acme-challenge { try_files \$uri \$uri/ =404; }
+		location /.well-known/pki-validation { try_files \$uri \$uri/ =404; }
+		return 301 /index.php\$request_uri;
+	}
+
+	location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)(?:\$|/) { return 404; }
+	location ~ ^/(?:\.|autotest|occ|issue|indie|db_|console) { return 404; }
+
+	error_page 403 /core/templates/403.php;
+	error_page 404 /core/templates/404.php;
+
+	# php scripts
+	location ~* [^/]\.php(/|\$) {
+		try_files \$fastcgi_script_name =404;
+		include /nginx/conf.d/fastcgi_params;
+		fastcgi_buffers 8 16k;
+		fastcgi_buffer_size 32k;
+		fastcgi_index index.php;
+		fastcgi_split_path_info ^(.+?\.php)(/.*)\$;
+		fastcgi_param modHeadersAvailable true;
+		fastcgi_param front_controller_active true;
+		fastcgi_pass unix:/run/php-fpm/php-fpm-nextcloud.sock;
+	}
+
+	location /remote {
+		return 301 /remote.php\$request_uri;
+	}
+
+	location ~ \.(?:css|js|svg|gif)\$ {
+		try_files \$uri /index.php\$request_uri;
+		expires 6M;
+		access_log off;
+	}
+
+	location ~ \.woff2?\$ {
+		try_files \$uri /index.php\$request_uri;
+		expires 7d;
+		access_log off;
+	}
+
+	location / {
+		try_files \$uri \$uri/ /index.php\$request_uri;
+	}
+
+}
+EOF
+validate "$?"
+
+P_CMD="Config: Nginx vhost permissions"
+sudo chown http:http /nginx/vhosts.d/nextcloud.conf && sudo chmod 660 /nginx/vhosts.d/nextcloud.conf >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Config: Create Nginx Log Directory"
+sudo -u http mkdir -m 770 -p /nginx/logs/nextcloud
+validate "$?"
+
+P_CMD="Config: Nextcloud Config"
+T_DATADIR=$(printf '%s\n' "${P_DATADIR}" | sed -e 's/[]\/$*.^[]/\\&/g')
+sudo sed -i -e "s/\/var\/log\/nextcloud/${T_DATADIR}\/data/" -e "s/\/var\/lib\/nextcloud\/apps/${T_DATADIR}\/apps/" -e "s/0 => 'localhost',/0 => 'localhost',\n1 => '${P_VHOST}',/" -e "s/);//" /etc/webapps/nextcloud/config/config.php >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Config: Nextcloud Config #2"
+sudo tee -a /etc/webapps/nextcloud/config/config.php << EOF >/dev/null 2>&1
+  'default_phone_region' => 'US',
+  'memcache.local' => '\OC\Memcache\APCu',
+  'updatechecker' => false,
+);
+EOF
+validate "$?"
+
+P_CMD="Config: PHP-FPM Config"
+sudo sed -i -e "s/\[memory_limit\] = 256M/\[memory_limit\] = 512M/" /etc/php/php-fpm.d/defaults.inc >/dev/null 2>&1
+validate "$?"
+
+printf "\\n"
+# }}}
+# Finalize {{{
+desc "Finalize"
+
+P_CMD="Finalize: Restart Nginx/PHP-FPM"
+sudo systemctl restart php-fpm.service nginx.service >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Finalize: Start Nextcloud Cron Timer"
+sudo systemctl enable --now nextcloud-cron.timer >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Finalize: Enable Installed Apps"
+occ app:enable bookmarks breezedark calendar contacts deck encryption files_external files_markdown keeweb mail news spreed tasks twofactor_totp >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Finalize: Background Jobs Selector"
+occ background:cron >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Finalize: Disable Recommendations App"
+occ app:disable recommendations >/dev/null 2>&1
+validate "$?"
+
+P_CMD="Finalize: Enable Encryption"
+occ encryption:enable >/dev/null 2>&1
+validate "$?"
+# }}}
+
+printf "\\n\\n"
+printf "\\x1b[1;30mVisit: https://${P_VHOST} to proceed\\x1b[0m\\n\\n"
+
+# vim: ft=sh sts=4 sw=4 ts=4 noet:
