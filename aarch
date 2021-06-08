@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.5.9 2021/05/24 12:39:24 kyau Exp $
+# $KYAULabs: aarch,v 2.6.1 2021/06/02 00:24:19 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -1079,9 +1079,9 @@ if [ -n "${AA_IPADDR}" ]; then
 			_DNS="${_DNS}Domains=${i}\n"
 		done
 	fi
-	_NIC="${_NIC}DHCP=no\n${_DNS}IPv6AcceptRA=no\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
+	_NIC="${_NIC}DHCP=no\n${_DNS}IPv6AcceptRA=false\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
 else
-	_NIC="${_NIC}DHCP=ipv4\nIPv6AcceptRA=no\nNTP=pool.ntp.org\n\n[DHCP]\nUseDNS=true\nUseDomains=true\n\n[Address]\nLabel=archlinux"
+	_NIC="${_NIC}DHCP=ipv4\nIPv6AcceptRA=false\nNTP=pool.ntp.org\n\n[DHCP]\nUseDNS=true\nUseDomains=true\n\n[Address]\nLabel=archlinux"
 fi
 echo -e "${_NIC}" > /mnt/etc/systemd/network/eth0.network
 validate "$?"
@@ -1602,9 +1602,9 @@ validate "$?"
 
 _AA_CMD="Create: /etc/ssh/sshd_config"
 /usr/bin/cat > /mnt/etc/ssh/sshd_config << EOF
-# \$KYAULabs: sshd_config,v 1.0.0 2020/08/16 01:45:10 kyau Exp \$
+# \$KYAULabs: sshd_config,v 1.0.1 2021/05/27 12:33:51 kyau Exp \$
 
-# https://cipherli.st/
+# https://cipherlist.dev/
 Port 4222
 Protocol 2
 HostKey /etc/ssh/ssh_host_ed25519_key
@@ -1650,9 +1650,9 @@ validate "$?"
 
 _AA_CMD="Create: /etc/ssh/ssh_config"
 /usr/bin/cat > /mnt/etc/ssh/ssh_config << EOF
-# \$KYAULabs: ssh_config,v 1.000 2019/07/26 23:27:33 kyau Exp \$
+# \$KYAULabs: ssh_config,v 1.0.1 2021/05/27 12:33:19 kyau Exp \$
 
-# https://cipherli.st/
+# https://cipherlist.dev/
 Host *
 	ChallengeResponseAuthentication no
 	Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
@@ -1885,16 +1885,9 @@ fi
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	echo "pacman -Rs boost cmake" >> /mnt/root/firstboot
 fi
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
-	# shellcheck disable=SC2129
-	echo "runuser -l \"${AA_USERNAME}\" -c \"${AA_PKGMAN} -S addrwatch lynis-git --noconfirm\"" >> /mnt/root/firstboot
-	echo "sed -i -e 's/After=systemd-network-wait-online.service/After=network.target network-online.target/' -e 's/Wants=systemd-network-wait-online.service/Wants=network-online.target/' -e 's/addrwatch -q/addrwatch -P -q/' /usr/lib/systemd/system/addrwatch@.service" >> /mnt/root/firstboot
-	echo "systemctl enable addrwatch@eth0.service" >> /mnt/root/firstboot
-fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot << EOF
 runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -Rs linux --noconfirm"
-echo -e "skip-upgrade-test=yes\nskip-test=ACCT-9626\nskip-test=AUTH-9408\nskip-test=NETW-2705\nskip-test=FIRE-4512\nskip-test=BANN-7126\nskip-test=BANN-7130" >> /etc/lynis/custom.prf
 
 EOF
 fi
