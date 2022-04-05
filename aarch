@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.6.1 2021/06/02 00:24:19 kyau Exp $
+# $KYAULabs: aarch,v 2.6.2 2022/04/05 13:49:21 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -10,7 +10,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2021 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2022 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -535,7 +535,7 @@ printf "\\n"
 desc "Installation"
 # packages to remove after installation
 _PACSTRAP_REMOVE=(linux pyalpm)
-_PACSTRAP=(base base-devel haveged linux-hardened linux-hardened-headers rkhunter sysstat)
+_PACSTRAP=(base base-devel haveged libpwquality linux-hardened linux-hardened-headers rkhunter sysstat)
 # packages that used to be in base
 _PACSTRAP+=(linux-firmware logrotate lvm2 man-db man-pages)
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
@@ -653,7 +653,8 @@ printf "\\n"
 desc "Config: [0mUser Accounts"
 _AA_CMD="Enforce Strong Passwords"
 /usr/bin/cat > /mnt/etc/pam.d/passwd << EOF
-password required pam_cracklib.so authtok_type=ARCH retry=2 difok=6 minlen=12 dcredit=-1 ucredit=-1 lcredit=-1 ocredit=-1 maxrepeat=2 maxsequence=4 reject_username
+#%PAM-1.0
+password required pam_pwquality.so retry=2 difok=6 minlen=12 dcredit=-1 ucredit=-1 lcredit=-1 ocredit=-1 maxrepeat=2 maxsequence=4 reject_username
 password required pam_unix.so use_authtok shadow sha512 rounds=65535
 EOF
 

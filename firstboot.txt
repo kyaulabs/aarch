@@ -1,5 +1,8 @@
-# $KYAULabs: firstboot.txt,v 1.0.8 2019/08/06 14:02:53 kyau Exp $
+# $KYAULabs: firstboot.txt,v 1.1.0 2021/10/29 01:21:07 kyau Exp $
 
+echo "-- AARCH: STARSHIP --"
+# download and install starship cross-shell prompt
+/bin/sh -c "$(curl -fsSL https://starship.rs/install.sh)" -- --yes
 echo "-- AARCH: FISH SHELL --"
 # change users default shell to fish
 chsh -s /usr/bin/fish "${AA_USERNAME}"
@@ -9,16 +12,19 @@ _ADD=
 if [ "${AA_XORG}" -ne "0" ]; then
 	_ADD="x"
 fi
-runuser -l "${AA_USERNAME}" -c "/usr/bin/bash /home/${AA_USERNAME}/dotfiles/dotme -${_ADD}p ${AA_MACHINEROLE}"
+# download and install dotfiles from github
+runuser -l "${AA_USERNAME}" -c "/bin/bash /home/${AA_USERNAME}/dotfiles/dotme -${_ADD}p ${AA_MACHINEROLE}"
 runuser -l "${AA_USERNAME}" -c 'rm -rf ~/dotfiles'
 # download fisher package manager for fish
-runuser -l "${AA_USERNAME}" -c 'curl https://git.io/fisher --create-dirs -sLo ~/.config/fish/functions/fisher.fish'
+runuser -l "${AA_USERNAME}" -c 'curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher'
 # download tpm package manager for tmux
 runuser -l "${AA_USERNAME}" -c 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm'
 # download Vundle package manager for vim
-runuser -l "${AA_USERNAME}" -c 'git clone https://github.com/VundleVim/Vundle.vim.git ~/.vim/bundle/Vundle.vim'
-# run fisher to download default packages
+runuser -l "${AA_USERNAME}" -c 'git clone https://github.com/VundleVim/Vundle.vim ~/.vim/bundle/Vundle.vim'
+# run fisher to download fish packages
 runuser -l "${AA_USERNAME}" -c 'fisher'
+# run vundle to download vim packages
+runuser -l "${AA_USERNAME}" -c 'vim +PluginInstall +qall'
 # read from arch package file and install all needed packages
 #
 # this will execute '${AA_PKGMAN} -S <name>' on every package listed in the file

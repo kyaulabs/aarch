@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: nginx.pkg,v 1.2.9 2021/05/26 01:12:54 kyau Exp $
+# $KYAULabs: nginx.pkg,v 1.3.3 2021/11/07 22:25:02 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -37,8 +37,11 @@ P_IPS=()						# Ex. P_IPS("1.2.3.4" "4.3.2.1")
 								# External IPs with HTTP-only access
 								# All IPs are pulled from system if blank
 								# First IP is selected as Primary
-P_DOMAINS=()					# Ex. P_DOMAINS=("domain1.com" "domain2.net")
-								# Domains that are hosted on this machine
+P_PUBLIC=()						# Ex. P_PUBLIC=("domain1.com" "domain2.net")
+								# Public domains that are hosted on this machine
+								# When empty domain is selected from hostname
+P_PRIVATE=()					# Ex. P_PRIVATE=("domain1.local" "domain2.lab")
+								# Private domains that are hosted on this machine
 								# When empty domain is selected from hostname
 
 # Default Functions {{{
@@ -131,12 +134,16 @@ if [ -z "${P_IPS+x}" ]; then
 		IFS=' ' read -ra P_IPS <<< "${P_IPS[@]}"
 	fi
 fi
-# Domains
-if [ "${#P_DOMAINS[*]}" -eq 0 ]; then
+# Public Domains
+if [ "${#P_PUBLIC[*]}" -eq 0 ]; then
 	T_DOMAIN=$(hostname | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
-	P_DOMAINS=("${T_DOMAIN}")
+	P_PUBLIC=("${T_DOMAIN}")
 fi
-
+# Private Domains
+if [ "${#P_PRIVATE[*]}" -eq 0 ]; then
+	T_DOMAIN=$(hostname | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
+	P_PRIVATE=("${T_DOMAIN}")
+fi
 # }}}
 # Variables: Summary {{{
 print_logo
@@ -183,7 +190,7 @@ pikaur -Syy "${T_PKG[@]}" --noedit --nodiff --noconfirm >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Install: Create Web Server Environment"
-sudo mkdir -p ${P_ROOTDIR}/nginx/conf.d ${P_ROOTDIR}/nginx/https/ip ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/sql ${P_ROOTDIR}/nginx/ssl ${P_ROOTDIR}/nginx/vhosts.d
+sudo mkdir -m775 -p ${P_ROOTDIR}/nginx && sudo chown http:http ${P_ROOTDIR}/nginx && sudo -u http mkdir -m770 -p ${P_ROOTDIR}/nginx/conf.d ${P_ROOTDIR}/nginx/https/ip ${P_ROOTDIR}/nginx/https/error ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/ssl ${P_ROOTDIR}/nginx/vhosts.d && sudo -u http mkdir -m750 ${P_ROOTDIR}/nginx/sql && sudo chown mysql:mysql ${P_ROOTDIR}/nginx/sql
 validate "$?"
 
 if [ "${P_ROOTDIR}" != "/" ]; then
@@ -192,9 +199,9 @@ if [ "${P_ROOTDIR}" != "/" ]; then
 	validate "$?"
 fi
 
-P_CMD="Install: Permissions"
-sudo chown -R http:http /nginx && sudo chmod -R 770 /nginx && sudo chown mysql:mysql /nginx/sql && sudo chmod 750 /nginx/sql && sudo chmod 755 /nginx
-validate "$?"
+#P_CMD="Install: Permissions"
+#sudo chown -R http:http ${P_ROOTDIR}/nginx && sudo chown mysql:mysql ${P_ROOTDIR}/nginx/sql && sudo chmod 750 ${P_ROOTDIR}/nginx/sql && sudo chmod 755 ${P_ROOTDIR}/nginx
+#validate "$?"
 
 P_CMD="Install: Add User to Web Group"
 sudo gpasswd -a "${P_USERNAME}" http >/dev/null 2>&1
@@ -634,17 +641,20 @@ printf "\\n"
 # Domains {{{
 desc "Domain Config"
 
-if [ "${#P_DOMAINS[*]}" -gt 0 ]; then
-	for i in "${P_DOMAINS[@]}"; do
-		l_domain=$i
-		l_name=${i//./_}
+function domain() {
+	l_domain=$1
+	l_name=${1//./_}
+	s_domain=" (Private)"
+	if [[ "$2" -ne 0 ]]; then
+		s_domain=" (Public)"
+	fi
 
-		P_CMD="Domains: Create PHP-FPM Pool"
-		sudo install -g root -m 644 -o root /dev/null "/etc/php/php-fpm.d/${l_name}.conf" >/dev/null 2>&1
-		validate "$?"
+	P_CMD="Domains: Create PHP-FPM Pool"
+	sudo install -g root -m 644 -o root /dev/null "/etc/php/php-fpm.d/${l_name}.conf" >/dev/null 2>&1
+	validate "$?"
 
-		P_CMD="Domains: PHP-FPM Pool Config"
-		sudo tee -a "/etc/php/php-fpm.d/${l_name}.conf" << EOF >/dev/null 2>&1
+	P_CMD="Domains{$s_domain}: PHP-FPM Pool Config"
+	sudo tee -a "/etc/php/php-fpm.d/${l_name}.conf" << EOF >/dev/null 2>&1
 ; \$KYAULabs: ${l_name}.conf,v 1.0.1 2021/05/16 12:46:46 kyau Exp \$
 
 [${l_name}]
@@ -657,16 +667,19 @@ env[TEMP] = /tmp
 
 ; vim: ft=dosini sts=4 sw=4 ts=4 noet :
 EOF
-		validate "$?"
+	validate "$?"
 
-		P_CMD="Domains: NGINX Config Permissions"
-		sudo install -g http -m 660 -o http /dev/null "/nginx/vhosts.d/${l_name}.conf" >/dev/null 2>&1
-		validate "$?"
+	P_CMD="Domains{$s_domain}: NGINX Config Permissions"
+	sudo install -g http -m 660 -o http /dev/null "/nginx/vhosts.d/${l_name}.conf" >/dev/null 2>&1
+	validate "$?"
 
-		P_CMD="Domains: Create NGINX Config"
-		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
+	P_CMD="Domains{$s_domain}: Create NGINX Config"
+	sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 # \$KYAULabs: ${l_name}.conf,v 1.1.6 2021/05/16 12:47:14 kyau Exp \$
 
+EOF
+	if [[ "$2" -ne 0 ]]; then
+		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 ## Redirect all WWW to Non-WWW (SSL)
 server {
 	listen *:443 ssl http2;
@@ -685,6 +698,9 @@ server {
 	return 301 https://${l_domain}\$request_uri;
 }
 
+EOF
+	fi
+	sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 ## ${l_domain}
 server {
 	listen *:443 ssl http2;
@@ -694,10 +710,22 @@ server {
 	#access_log /nginx/logs/${l_name}/${l_name}-access.log;
 	error_log /nginx/logs/${l_name}/${l_name}-error.log;
 
+EOF
+	if [[ "$2" -ne 0 ]]; then
+		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 	ssl_certificate /etc/letsencrypt/live/${l_domain}/fullchain.pem;
 	ssl_certificate_key /etc/letsencrypt/live/${l_domain}/privkey.pem;
 	ssl_trusted_certificate /etc/letsencrypt/live/${l_domain}/chain.pem;
 
+EOF
+	else
+		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
+	ssl_certificate /nginx/ssl/${l_name}.crt;
+	ssl_certificate_key /nginx/ssl/${l_name}.key;
+
+EOF
+	fi
+	sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 	include /nginx/conf.d/vhost.defaults;
 
 	root /nginx/https/${l_name}/www;
@@ -735,6 +763,9 @@ server {
 	}
 }
 
+EOF
+	if [[ "$2" -ne 0 ]]; then
+		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 ## api.${l_domain}
 server {
 	listen *:443 ssl http2;
@@ -774,16 +805,78 @@ server {
 	}
 }
 
+EOF
+	fi
+	sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 # vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+	validate "$?"
+
+	P_CMD="Domains{$s_domain}: Create Directories"
+	sudo mkdir -p "${P_ROOTDIR}/nginx/logs/${l_name}" "${P_ROOTDIR}/nginx/https/${l_name}/api" "${P_ROOTDIR}/nginx/https/${l_name}/www" >/dev/null 2>&1
+	validate "$?"
+}
+
+if [ "${#P_PUBLIC[*]}" -gt 0 ]; then
+	for i in "${P_PUBLIC[@]}"; do
+		domain "$i" "1"
+	done
+fi
+if [ "${#P_PRIVATE[*]}" -gt 0 ]; then
+	for i in "${P_PRIVATE[@]}"; do
+		domain "$i" "0"
+	done
+fi
+
+P_CMD="Domains: Directory Permissions"
+sudo chmod -R 770 ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/https >/dev/null 2>&1
+validate "$?"
+
+printf "\\n"
+# }}}
+# Self-signed SSL {{{
+desc "SSL"
+
+if [ "${#P_PRIVATE[*]}" -gt 0 ]; then
+	P_CMD="Domains (Private): Update Script"
+	sudo install -g http -m 770 -o http /dev/null ${P_ROOTDIR}/nginx/ssl/update.sh >/dev/null 2>&1
+	sudo tee -a "${P_ROOTDIR}/nginx/ssl/update.sh" <<EOF >/dev/null 2>&1
+#!/bin/bash
+
+EOF
+	validate "$?"
+
+	for i in "${P_PRIVATE[@]}"; do
+		P_CMD="Domains (Private): Self-Signed SSL - ${i}"
+		l_domain=$i
+		l_name=${i//./_}
+		t_domain=$(cat /proc/sys/kernel/hostname | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
+		sudo install -g http -m 660 -o http /dev/null ${P_ROOTDIR}/nginx/ssl/${l_name}.cnf >/dev/null 2>&1
+		sudo tee -a "${P_ROOTDIR}/nginx/ssl/${l_name}.cnf" << EOF >/dev/null 2>&1
+prompt					= no
+distinguished_name		= req_dn
+x509_extensions			= x509_ext
+
+[req_dn]
+
+commonName				= ${l_domain}
+
+[x509_ext]
+
+subjectAltName			= @alt_names
+
+[alt_names]
+
+DNS.1 = ${l_domain}
+DNS.2 = ${t_domain}
 EOF
 		validate "$?"
 
-		P_CMD="Domains: Create Directories"
-		sudo mkdir -p "${P_ROOTDIR}/nginx/logs/${l_name}" "${P_ROOTDIR}/nginx/https/${l_name}/api" "${P_ROOTDIR}/nginx/https/${l_name}/www" >/dev/null 2>&1
-		validate "$?"
-
-		P_CMD="Domains: Directory Permissions"
-		sudo chmod -R 770 ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/https >/dev/null 2>&1
+		P_CMD="Domains (Private): Generate Self-Signed SSL"
+		sudo -u http openssl req -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -out ${P_ROOTDIR}/nginx/ssl/${l_name}.crt -keyout ${P_ROOTDIR}/nginx/ssl/${l_name}.key -config ${P_ROOTDIR}/nginx/ssl/${l_name}.cnf >/dev/null 2>&1
+		sudo tee -a "${P_ROOTDIR}/nginx/ssl/update.sh" <<EOF >/dev/null 2>&1
+sudo -u http openssl req -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -out /nginx/ssl/${l_name}.crt -keyout ${P_ROOTDIR}/nginx/ssl/${l_name}.key -config ${P_ROOTDIR}/nginx/ssl/${l_name}.cnf
+EOF
 		validate "$?"
 	done
 fi
@@ -811,6 +904,7 @@ validate "$?"
 
 P_CMD="Finalize: Directory Permissions"
 sudo chown -R http:http ${P_ROOTDIR}/nginx/conf.d/ ${P_ROOTDIR}/nginx/https/ ${P_ROOTDIR}/nginx/logs/ ${P_ROOTDIR}/nginx/ssl/ ${P_ROOTDIR}/nginx/vhosts.d/
+validate "$?"
 
 if [ "${#P_IPS[*]}" -gt 0 ]; then
 	P_CMD="Finalize: External IPs Permissions"
