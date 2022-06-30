@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.6.2 2022/04/05 13:49:21 kyau Exp $
+# $KYAULabs: aarch,v 2.6.3 2022/06/30 04:33:44 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -1692,8 +1692,10 @@ _AA_CMD="Modify: /etc/nftables.conf"
 /usr/bin/cat > /mnt/etc/nftables.conf << EOF
 #!/usr/bin/nft -f
 #
-# \$KYAULabs: nftables.conf,v 1.0.2 2020/09/13 21:04:39 kyau Exp \$
+# \$KYAULabs: nftables.conf,v 1.0.3 2022/06/30 04:33:16 kyau Exp \$
 # KYAU Labs - IPv4/IPv6 Firewall
+
+flush ruleset
 
 table inet filter {
 
