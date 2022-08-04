@@ -2,7 +2,7 @@
 <a href="https://kyaulabs.com/">https://kyaulabs.com/</a>
 
 [![](https://img.shields.io/badge/coded_in-vim-green.svg?logo=vim&logoColor=brightgreen&colorB=brightgreen&longCache=true&style=flat)](https://vim.org) &nbsp; [![](https://img.shields.io/badge/license-AGPL_v3-blue.svg?style=flat)](https://gitlab.com/kyaulabs/aarch/blob/master/LICENSE) &nbsp; [![](https://img.shields.io/badge/build-passing-success?style=flat)](https://www.shellcheck.net/)
-[![](https://img.shields.io/badge/bash-5.0.x-8E68AC.svg?style=flat)](https://www.gnu.org/software/bash/)
+[![](https://img.shields.io/badge/bash-5.x-8E68AC.svg?style=flat)](https://www.gnu.org/software/bash/)
 
 ### About
 AArch or Automated Arch Linux is a template-based automated installer for Arch
