@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.6.3 2022/06/30 04:33:44 kyau Exp $
+# $KYAULabs: aarch,v 2.6.4 2022/07/24 19:49:30 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -678,8 +678,8 @@ _AA_CMD="Create: /etc/sudoers.d/kyaulabs"
 /usr/bin/cat > /mnt/etc/sudoers.d/kyaulabs << EOF
 Defaults editor=/usr/bin/rvim
 Defaults env_keep += "SSH_AUTH_SOCK"
-%wheel ALL=(ALL) ALL
-ALL ALL=(ALL) /usr/sbin/checkupdates
+%wheel ALL=(ALL:ALL) ALL
+%wheel ALL=(ALL:ALL) NOPASSWD:/usr/sbin/checkupdates
 EOF
 validate "$?"
 
@@ -1844,9 +1844,9 @@ echo -e "title\tUEFI Shell x86_64 v2\nefi\t/EFI/tools/shellx64.efi" | tee /boot/
 EOF
 fi
 if [ "${AA_XORG}" -eq "0" ]; then
-	echo "systemctl set-default multi-user.target" >> /mnt/firstboot
+	echo "systemctl set-default multi-user.target" >> /mnt/root/firstboot
 else
-	echo "systemctl set-default graphical.target" >> /mnt/firstboot
+	echo "systemctl set-default graphical.target" >> /mnt/root/firstboot
 fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot <<EOF
