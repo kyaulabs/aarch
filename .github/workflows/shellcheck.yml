@@ -16,4 +16,4 @@ jobs:
     - name: Run ShellCheck
       uses: ludeeus/action-shellcheck@master
       with:
-        additional_files: 'aarch erase_hdd firstboot.txt kvm.pkg nextcloud.pkg nginx.pkg'
+        additional_files: 'aarch erase_hdd example.aa firstboot.txt kvm.pkg nextcloud.pkg nginx.pkg'
