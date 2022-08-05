@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: nextcloud.pkg,v 1.1.1 2021/05/26 01:12:45 kyau Exp $
+# $KYAULabs: nextcloud.pkg,v 1.1.2 2022/08/04 12:16:14 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -10,7 +10,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # KYAU Labs - AArch: Nextcloud Package
-# Copyright (C) 2021 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2022 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -274,7 +274,7 @@ printf "\\n"
 # }}}
 # Config {{{
 l_domain=$(echo "${P_VHOST}" | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
-l_name=${l_domain//./_}
+#l_name=${l_domain//./_}
 desc "Config"
 
 P_CMD="Config: Nginx vhost config"
@@ -450,6 +450,6 @@ validate "$?"
 # }}}
 
 printf "\\n\\n"
-printf "\\x1b[1;30mVisit: https://${P_VHOST} to proceed\\x1b[0m\\n\\n"
+printf "\\x1b[1;30mVisit: https://%s to proceed\\x1b[0m\\n\\n" "${P_VHOST}"
 
 # vim: ft=sh sts=4 sw=4 ts=4 noet:
