@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.6.4 2022/07/24 19:49:30 kyau Exp $
+# $KYAULabs: aarch,v 2.6.5 2022/08/05 16:16:12 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -67,7 +67,7 @@ fi
 # Load Machine Template
 for file in *.aa; do
 	if [ -f "$file" ]; then
-		# shellcheck source=example.aa
+		# shellcheck disable=SC1091
 		source "$file"
 		break
 	fi
