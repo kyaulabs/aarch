@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: aarch,v 2.6.5 2022/08/05 16:16:12 kyau Exp $
+# $KYAULabs: aarch,v 2.6.6 2023/04/09 03:52:31 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -10,7 +10,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2022 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2023 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -312,6 +312,7 @@ if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 fi
 # }}}
 # Prereq: LUKS2 {{{
+AA_DISKO="${AA_DISK}"
 LASTCHAR="${AA_DISK: -1}"
 re='^[0-9]+$'
 if [[ $LASTCHAR =~ $re ]] ; then
@@ -419,36 +420,36 @@ printf "\\n"
 # Prereq: Filesystems {{{
 desc "Prereq: [0mFilesystems"
 _AA_CMD="Format: Ext4 (${AA_HOST}-root)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-root >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/root >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-usr)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-usr >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/usr >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var_cache)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var_cache >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var_cache >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var_log)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var_log >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var_log >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var_log_audit)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-var_log_audit >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var_log_audit >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-home)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-home >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/home >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_AA_CMD="Format: Ext4 (${AA_HOST}-srv)"
-	/usr/bin/mkfs.ext4 -O metadata_csum /dev/mapper/${AA_HOST}-srv >/dev/null 2>&1
+	/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/srv >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -464,16 +465,16 @@ fi
 
 if [ "${AA_SWAP}" -ne "0" ]; then
 	_AA_CMD="Swap: Create"
-	/usr/bin/mkswap /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+	/usr/bin/mkswap /dev/${AA_HOST}/swap >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Swap: Enable"
-	/usr/bin/swapon /dev/mapper/${AA_HOST}-swap >/dev/null 2>&1
+	/usr/bin/swapon /dev/${AA_HOST}/swap >/dev/null 2>&1
 	validate "$?"
 fi
 
 _AA_CMD="Mount: ${AA_HOST}-root => /mnt"
-/usr/bin/mount -o defaults,noatime,journal_checksum /dev/mapper/${AA_HOST}-root /mnt >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,journal_checksum /dev/${AA_HOST}/root /mnt >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Create Directory Structure"
@@ -495,15 +496,15 @@ else
 fi
 
 _AA_CMD="Mount: ${AA_HOST}-home => /mnt/home"
-/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/mapper/${AA_HOST}-home /mnt/home >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/${AA_HOST}/home /mnt/home >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-usr => /mnt/usr"
-/usr/bin/mount -o defaults,noatime,journal_checksum /dev/mapper/${AA_HOST}-usr /mnt/usr >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,journal_checksum /dev/${AA_HOST}/usr /mnt/usr >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var => /mnt/var"
-/usr/bin/mount -o defaults,noatime,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var /mnt/var >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nosuid,journal_checksum /dev/${AA_HOST}/var /mnt/var >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Create Directory Structure: /var"
@@ -511,21 +512,21 @@ _AA_CMD="Create Directory Structure: /var"
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var_cache => /mnt/var/cache"
-/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var_cache /mnt/var/cache >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/${AA_HOST}/var_cache /mnt/var/cache >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var_log => /mnt/var/log"
-/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var_log /mnt/var/log >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/${AA_HOST}/var_log /mnt/var/log >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var_log_audit => /mnt/var/log/audit"
 /usr/bin/mkdir -p /mnt/var/log/audit >/dev/null 2>&1
-/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/mapper/${AA_HOST}-var_log_audit /mnt/var/log/audit >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/${AA_HOST}/var_log_audit /mnt/var/log/audit >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_AA_CMD="Mount: ${AA_HOST}-srv => /mnt/srv"
-	/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/mapper/${AA_HOST}-srv /mnt/srv >/dev/null 2>&1
+	/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/${AA_HOST}/srv /mnt/srv >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -535,7 +536,7 @@ printf "\\n"
 desc "Installation"
 # packages to remove after installation
 _PACSTRAP_REMOVE=(linux pyalpm)
-_PACSTRAP=(base base-devel haveged libpwquality linux-hardened linux-hardened-headers rkhunter sysstat)
+_PACSTRAP=(base base-devel haveged libpwquality linux-hardened rkhunter sysstat)
 # packages that used to be in base
 _PACSTRAP+=(linux-firmware logrotate lvm2 man-db man-pages)
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
@@ -559,7 +560,7 @@ _PACSTRAP+=(bind-tools cronie nftables openssh)
 _PACSTRAP+=(pacman-contrib pyalpm reflector)
 # common
 _PACSTRAP+=(arch-audit fish git sudo tmux vim wget)
-_PACSTRAP+=(bc dateutils htop iotop)
+_PACSTRAP+=(bc dateutils htop iotop inetutils)
 # compression
 _PACSTRAP+=(p7zip unrar)
 #_PACSTRAP=(arch-audit base base-devel bc bind-tools cronie dateutils fish gptfdisk git htop iotop lsof nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo tmux unrar unzip vim zip)
@@ -598,7 +599,7 @@ if [ -n "${AA_WIFI_SSID}" ]; then
 	_PACSTRAP+=(wpa_supplicant)
 fi
 _AA_CMD="Pacstrap Installation Script"
-/usr/bin/pacstrap "/mnt" "${_PACSTRAP[@]}" >/dev/null 2>&1
+/usr/bin/pacstrap "-K" "/mnt" "${_PACSTRAP[@]}" >/dev/null 2>&1
 validate "$?"
 
 printf "\\n"
@@ -621,8 +622,12 @@ _AA_CMD="Fstab: Secure /"
 /usr/bin/sed -i 's/rw,noatime\t0 1/defaults,noatime\t0 1/' /mnt/etc/fstab
 validate "$?"
 
-_AA_CMD="Fstab: Secure /dev/shm"
-echo -e "# /dev/shm: shared application memory\ntmpfs\t/dev/shm\ttmpfs\tdefaults,noatime,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0 0\n" >> /mnt/etc/fstab
+_AA_CMD="Fstab: Secure /var"
+/usr/bin/sed -i 's/\/var[\t ]*ext4[\t ]*rw/\/var\t\text4\t\trw,nodev/' /mnt/etc/fstab
+validate "$?"
+
+_AA_CMD="Fstab: Secure /dev & /dev/shm"
+echo -e "# /dev: device nodes\ndevtmpfs\t/dev\tdevtmpfs\tdefaults,noexec,nosuid\t0 0\n\n# /dev/shm: shared application memory\ntmpfs\t/dev/shm\ttmpfs\tdefaults,noatime,nodev,nosuid,noexec,size=1024M,mode=1770,uid=root,gid=shm\t0 0\n" >> /mnt/etc/fstab
 validate "$?"
 
 _AA_CMD="Fstab: Secure /tmp"
@@ -660,6 +665,13 @@ EOF
 
 _AA_CMD="Enforce Password Rotation (4 years)"
 /usr/bin/sed -i -e 's/^PASS_MAX_DAYS\t99999/PASS_MAX_DAYS\t1460/' -e 's/^PASS_MIN_DAYS\t0/PASS_MIN_DAYS\t1/' /mnt/etc/login.defs
+validate "$?"
+
+_AA_CMD="Enforce Password Rounds (SHA512)"
+/usr/bin/cat >> /mnt/etc/login.defs << EOF
+SHA_CRYPT_MIN_ROUNDS=655360
+SHA_CRYPT_MAX_ROUNDS=655360
+EOF
 validate "$?"
 
 _AA_CMD="Modify: Superuser Password"
@@ -730,10 +742,10 @@ editor no
 EOF
 
 	_AA_CMD="Modify: /boot/loader/entries/arch.conf"
-	_ROOT="root=/dev/mapper/${AA_HOST}-root"
+	_ROOT="root=/dev/${AA_HOST}/root"
 	_OPTIONS="rw add_efi_memmap zswap.enabled=1 zswap.compressor=lz4 zswap.max_pool_percent=20 zswap.zpool=z3fold"
 	if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor audit=1"
+		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor lsm=landlock,lockdown,yama,integrity,apparmor,bpf audit=1"
 	fi
 	if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
 		if [ "${AA_XORG}" -eq "1" ]; then
@@ -757,8 +769,8 @@ EOF
 	validate "$?"
 else
 	_AA_CMD="Install: GRUB2"
-	/usr/bin/partprobe ${AA_DISK}
-	/usr/bin/arch-chroot /mnt grub-install --target=i386-pc ${AA_DISK} >/dev/null 2>&1
+	/usr/bin/partprobe ${AA_DISKO}
+	/usr/bin/arch-chroot /mnt grub-install --target=i386-pc ${AA_DISKO} >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Secure: GRUB2"
@@ -781,7 +793,7 @@ EOL
 	_TIMEOUT="10"
 	if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 		_TIMEOUT="3"
-		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor audit=1"
+		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor lsm=landlock,lockdown,yama,integrity,apparmor,bpf audit=1"
 	fi
 	if [ "${AA_UCODE^^}" = "AMD" ]; then
 		_OPTIONS="${_OPTIONS} initrd=/amd-ucode.img"
@@ -833,9 +845,13 @@ if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 fi
 _STRING=("-i" "-e" "s/^MODULES=()/MODULES=(${_MODULES})/")
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block sd-encrypt lvm2 filesystems/")
+	_STRING+=("-e" "s/base udev autodetect modconf kms keyboard keymap consolefont block filesystems/systemd keyboard sd-vconsole autodetect modconf kms keymap block sd-encrypt lvm2 filesystems/")
 else
-	_STRING+=("-e" "s/base udev autodetect modconf block filesystems keyboard/systemd keyboard sd-vconsole autodetect block lvm2 filesystems/")
+	#if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
+		_STRING+=("-e" "s/base udev autodetect modconf kms keyboard keymap consolefont block filesystems/systemd keyboard sd-vconsole autodetect modconf kms keymap block lvm2 filesystems/")
+	#else
+		#_STRING+=("-e" "s/base udev autodetect modconf kms block filesystems keyboard/base udev keyboard consolefont autodetect modconf kms block lvm2 filesystems/")
+	#fi
 fi
 /usr/bin/sed "${_STRING[@]}" /mnt/etc/mkinitcpio.conf >/dev/null 2>&1
 validate "$?"
@@ -848,7 +864,7 @@ EOF
 validate "$?"
 
 _AA_CMD="Generate: Initial Ramdisk Environment"
-/usr/bin/arch-chroot /mnt mkinitcpio -p linux-hardened >/dev/null 2>&1
+/usr/bin/arch-chroot /mnt mkinitcpio -P >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_XORG}" -eq "2" ]; then
@@ -876,6 +892,14 @@ fi
 
 _AA_CMD="Security: Kernel Runtime Parameters"
 /usr/bin/cat > /mnt/etc/sysctl.d/50-security.conf << EOF
+dev.tty.ldisc_autoload=0
+fs.protected_fifos=2
+fs.protected_regular=2
+fs.suid_dumpable=0
+kernel.dmesg_restrict=1
+kernel.kptr_restrict=2
+kernel.sysrq=0
+kernel.unprivileged_bpf_disabled=1
 net.ipv4.conf.all.log_martians=1
 net.ipv4.conf.all.rp_filter=1
 net.ipv4.conf.all.secure_redirects=0
@@ -885,9 +909,6 @@ net.ipv4.conf.default.send_redirects=0
 net.ipv4.conf.all.send_redirects=0
 net.ipv4.tcp_syncookies=1
 net.ipv4.tcp_rfc1337=1
-kernel.dmesg_restrict=1
-kernel.kptr_restrict=2
-kernel.sysrq=0
 EOF
 if [ ! "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 	/usr/bin/cat >> /mnt/etc/sysctl.d/50-security.conf << EOF
@@ -908,9 +929,11 @@ install befs /bin/false
 #install cifs /bin/false
 install coda /bin/false
 install cramfs /bin/false
+install dccp /bin/true
 install firewire-core /bin/false
 install hfs /bin/false
 install hfsplus /bin/false
+install ip_tables /bin/false
 install jfs /bin/false
 install jffs2 /bin/false
 install kafs /bin/false
@@ -921,11 +944,18 @@ install omfs /bin/false
 install orangefs /bin/false
 install overlay /bin/false
 #install reiserfs /bin/false
+install rds /bin/true
 install romfs /bin/false
+install sctp /bin/true
 install squashfs /bin/false
+install tipc /bin/true
 install ubifs /bin/false
 install udf /bin/false
 install usb-storage /bin/false
+blacklist dccp
+blacklist sctp
+blacklist rds
+blacklist tipc
 EOF
 	validate "$?"
 fi
@@ -1134,7 +1164,7 @@ fe00::3				ip6-allhosts
 # </localhost>
 EOF
 if [ -n "${AA_IPADDR}" ]; then
-	echo -e "${AA_IPADDR}\t${AA_HOST}.localdomain\t${AA_HOST}\n" >> /mnt/etc/hosts
+	echo -e "\n# <hostname>\n${AA_IPADDR}\t${AA_HOSTNAME}\t${AA_HOST}\n# </hostname>\n" >> /mnt/etc/hosts
 fi
 echo -e "\n# vim: ft=conf sts=4 sw=4 ts=4 noet:" >> /mnt/etc/hosts
 validate "$?"
@@ -1145,6 +1175,28 @@ validate "$?"
 
 _AA_CMD="Systemd: Enable (systemd-resolved.service)"
 /usr/bin/arch-chroot /mnt systemctl enable systemd-resolved.service >/dev/null 2>&1
+validate "$?"
+
+_AA_CMD="Systemd: Config (/etc/systemd/resolved.conf.d/)"
+/usr/bin/mkdir -p /mnt/etc/systemd/resolved.conf.d/
+_OUT=""
+if [ "${#AA_DOMAINS[*]}" -gt 0 ]; then
+	i_count=0
+	for i in "${AA_DOMAINS[@]}"; do
+		if [ $i_count -eq 0 ]; then
+			_OUT="${_OUT}Domains=${i}"
+		else
+			_OUT="${_OUT} ${i}"
+		fi
+		i_count=$((i_count + 1))
+	done
+fi
+/usr/bin/cat >> /mnt/etc/systemd/resolved.conf.d/kyaulabs.conf << EOF
+[Resolve]
+${_OUT}
+DNSSEC=yes
+DNSOverTLS=opportunistic
+EOF
 validate "$?"
 
 printf "\\n"
@@ -1721,60 +1773,60 @@ table inet filter {
 		type filter hook input priority filter; policy drop;
 
 		# allow from loopback
-		iifname lo accept
+		iifname lo accept comment "+loopback"
 
 		# early drop of invalid connections
-		ct state invalid drop
+		ct state invalid drop comment "-invalid"
 
 		# limit ping requests (10/second)
-		ip6 nexthdr icmpv6 icmpv6 type echo-request limit rate 10/second accept
-		ip protocol icmp icmp type echo-request limit rate 10/second accept
+		ip6 nexthdr icmpv6 icmpv6 type echo-request limit rate 10/second accept comment "+ping6"
+		ip protocol icmp icmp type echo-request limit rate 10/second accept comment "+ping"
 
 		# limit specific icmp types (5/second)
-		meta l4proto ipv6-icmp icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, mld-listener-query, mld-listener-report, mld-listener-reduction, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, ind-neighbor-solicit, ind-neighbor-advert, mld2-listener-report } limit rate 2/second accept comment "Allow ICMPv6"
-		meta l4proto icmp icmp type { destination-unreachable, router-solicitation, router-advertisement, time-exceeded, parameter-problem } limit rate 2/second accept comment "Allow ICMP"
+		meta l4proto ipv6-icmp icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, mld-listener-query, mld-listener-report, mld-listener-reduction, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, ind-neighbor-solicit, ind-neighbor-advert, mld2-listener-report } limit rate 2/second accept comment "+icmp6"
+		meta l4proto icmp icmp type { destination-unreachable, router-solicitation, router-advertisement, time-exceeded, parameter-problem } limit rate 2/second accept comment "+icmp"
 
 		# allow connections established/related by/to this machine
-		ct state { established, related } accept
+		ct state { established, related } accept comment "+established"
 
 		# drop loopback connections not coming from loopback
-		iifname != lo ip6 daddr ::1/128 drop
-		iifname != lo ip daddr 127.0.0.1/8 drop
+		iifname != lo ip6 daddr ::1/128 drop comment "-invalid_loopback6"
+		iifname != lo ip daddr 127.0.0.1/8 drop comment "-invalid_loopback"
 
 		# add blacklisted ips
-		ip saddr @blacklist drop
-		ip6 saddr @blacklist6 drop
+		ip6 saddr @blacklist6 drop comment "blacklist6"
+		ip saddr @blacklist drop comment "blacklist"
 
 		# drop all fragments
-		ip frag-off & 0x1fff != 0 counter drop
+		ip frag-off & 0x1fff != 0 counter drop comment "-fragments"
 
 		# force SYN checks
-		tcp flags & (fin|syn|rst|ack) != syn ct state new counter drop
+		tcp flags & (fin|syn|rst|ack) != syn ct state new counter drop comment "+syn_checks"
 
 		# drop XMAS packets
-		tcp flags & (fin|syn|rst|psh|ack|urg) == fin|syn|rst|psh|ack|urg counter drop
+		tcp flags & (fin|syn|rst|psh|ack|urg) == fin|syn|rst|psh|ack|urg counter drop comment "-xmas"
 
 		# drop NULL packets
-		tcp flags & (fin|syn|rst|psh|ack|urg) == 0x0 counter drop
+		tcp flags & (fin|syn|rst|psh|ack|urg) == 0x0 counter drop comment "-null"
 
 		# limit ssh (15/minute)
-		tcp dport 4222 limit rate 15/minute accept
+		tcp dport 4222 limit rate 15/minute accept comment "+sshd"
 
 		# allow http and https traffic
-		# tcp dport { http, https } accept
+		# tcp dport { http, https } accept comment "+httpd"
 
 		# allow nfs traffic
-		# meta l4proto { tcp, udp } th dport 2049 ip6 saddr { fd00::/8, fe80::/10 } accept comment "Allow NFS"
-		# meta l4proto { tcp, udp } th dport 2049 ip saddr { 10.0.0.0/24, 10.0.10.0/24 } accept comment "Allow NFS"
+		# meta l4proto { tcp, udp } th dport 2049 ip6 saddr { fd00::/8, fe80::/10 } accept comment "+nfs6"
+		# meta l4proto { tcp, udp } th dport 2049 ip saddr { 10.0.0.0/24, 10.0.10.0/24 } accept comment "+nfs"
 
 		# allow traffic from specific ip's
-		# ip saddr { 1.2.3.4, 4.3.2.1 } tcp dport 1234 ct state { established, new } counter accept
+		# ip saddr { 1.2.3.4, 4.3.2.1 } tcp dport 1234 ct state { established, new } counter accept comment "+service"
 
 		# allow a range of ports
-		# ip dport { 1000-2000, 3000-4000 } accept
+		# ip dport { 1000-2000, 3000-4000 } accept comment "+range"
 
 		# everything else (blackhole)
-		reject with icmpx type port-unreachable
+		reject with icmpx type port-unreachable comment "+blackhole"
 	}
 
 	# all forwarding traffic gets dropped (we are not a router)
@@ -1838,7 +1890,7 @@ if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot <<EOF
 mount -o remount,rw /boot
 mkdir -p /boot/EFI/tools
-curl -L https://github.com/tianocore/edk2/releases/latest/download/edk2-stable201911/ShellBinPkg.zip -o ShellBinPkg.zip > /dev/null 2>&1
+curl -L https://github.com/tianocore/edk2/releases/download/edk2-stable202002/ShellBinPkg.zip -o ShellBinPkg.zip > /dev/null 2>&1
 7z x ShellBinPkg.zip && cp ShellBinPkg/UefiShell/X64/Shell.efi /boot/EFI/tools/shellx64.efi && rm -rf /root/ShellBinPkg*
 echo -e "title\tUEFI Shell x86_64 v2\nefi\t/EFI/tools/shellx64.efi" | tee /boot/loader/entries/uefi-shell.conf
 EOF
@@ -1850,9 +1902,17 @@ else
 fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot <<EOF
-runuser -l "${AA_USERNAME}" -c "mkdir -m700 -p ~/.gnupg/ && echo 'standard-resolver' > ~/.gnupg/dirmngr.conf && gpg --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys B73CBC7708FA8C10"
+runuser -l "${AA_USERNAME}" -c "mkdir -m700 -p ~/.gnupg/ && echo 'standard-resolver' > ~/.gnupg/dirmngr.conf"
 sleep 5
+# gpg key for acct maintainer
+runuser -l "${AA_USERNAME}" -c "gpg --recv-key B73CBC7708FA8C10"
+# gpg key for aide maintainer
+runuser -l "${AA_USERNAME}" -c "gpg --recv-key 18EE86386022EF57"
 runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S acct --noedit --nodiff --noconfirm > /dev/null 2>&1"
+#runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S addrwatch aide lynis --noedit --nodiff --noconfirm" >/dev/null 2>&1
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S addrwatch --noedit --nodiff --noconfirm"
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S aide --noedit --nodiff --noconfirm"
+runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S lynis --noedit --nodiff --noconfirm"
 systemctl --now enable acct.service
 EOF
 fi
@@ -1891,11 +1951,14 @@ fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot << EOF
 runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -Rs linux --noconfirm"
-
+echo -e "skip-upgrade-test=yes\nskip-test=KRNL-5830\nskip-test=ACCT-9626\nskip-test=AUTH-9230\nskip-test=AUTH-9408\nskip-test=NETW-2705\nskip-test=FIRE-4512\nskip-test=BANN-7126\nskip-test=BANN-7130\nskip-test=KRNL-6000:kernel.modules_disabled" >> /etc/lynis/custom.prf
 EOF
 fi
 /usr/bin/cat >> /mnt/root/firstboot << EOF
-runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S inetutils-git --noconfirm" >/dev/null 2>&1
+
+sed -i -e 's/After=systemd-network-wait-online.service/After=network.target network-online.target/' -e 's/Wants=systemd-network-wait-online.service/Wants=network-online.target/' -e 's/addrwatch -q/addrwatch -P -q/' /usr/lib/systemd/system/addrwatch@.service
+aide --init
+mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 rm -f /etc/sudoers.d/temporary
 rm -f /root/firstboot
 echo "-- AARCH: SECURITY --"
@@ -1905,6 +1968,11 @@ systemctl disable firstboot.service
 systemctl daemon-reload
 rm -f /etc/systemd/system/firstboot.service
 EOF
+if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
+	/usr/bin/cat >> /mnt/root/firstboot << EOF
+systemctl enable addrwatch@eth0.service
+EOF
+fi
 validate "$?"
 
 _AA_CMD="Permissions: /root/firstboot"

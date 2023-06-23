@@ -1,10 +1,26 @@
 ![ANSI Logo](https://gitlab.com/kyaulabs/aarch/raw/master/aarch.ans.png "ANSI Logo")  
 <a href="https://kyaulabs.com/">https://kyaulabs.com/</a>
 
-[![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md) &nbsp; [![Semantic Versioning](https://img.shields.io/badge/Semantic%20Versioning-2.6.5-333333.svg)](https://semver.org) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/aarch)](LICENSE) &nbsp; [![CI](https://img.shields.io/github/workflow/status/kyaulabs/aarch/CI)](../../actions)  
-[![Vim](https://img.shields.io/badge/coded_in-vim-green.svg?logo=vim&logoColor=brightgreen&colorB=brightgreen&longCache=true&style=flat)](https://vim.org) &nbsp; [![Bash](https://img.shields.io/badge/bash-5.x-8E68AC.svg?style=flat)](https://www.gnu.org/software/bash/)
+[![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md) &nbsp; [![Semantic Versioning](https://img.shields.io/badge/semantic%20versioning-2.6.6-333333.svg)](https://semver.org) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/aarch)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue)](https://github.com/zricethezav/gitleaks) &nbsp; [![CI](https://img.shields.io/github/actions/workflow/status/kyaulabs/aarch/shellcheck.yml)](../../actions)  
 
-### About
+## Disclaimer
+
+I personally use Arch Linux everywhere and with the frequency at which I was doing reinstallations increasing, eventually I needed a better solution. What started as a hardening script that was run post-installation has merged into the fully automated installation script that you see before you.
+
+```
+🚧 WARNING
+This repository is provided for archival/educational purposes, I am not responsible for any data loss or
+damage that may ensue.
+```
+
+* [Introduction](#introduction)
+* [Configuration](#configuration)
+  * [Custom ARCHISO](#custom-archiso)
+  * [Existing ARCHISO](#existing-archiso)
+* [Usage](#usage)
+* [Attribution](#attribution)
+
+## Introduction
 AArch or Automated Arch Linux is a template-based automated installer for Arch
 Linux. This script is the convergence of my
 [Arch Linux Installation](https://kyau.net/wiki/ArchLinux:Installation) along
@@ -12,14 +28,16 @@ with my
 [Hardening Arch Linux (HAL)](https://kyau.net/wiki/ArchLinux:Security) articles
 on my personal wiki.
 
-### Preparations
-Before you can use aarch, a `moduli` must be generated. This will take a
-considerable amount of time depending on your CPU, if this is being executed
-in a virtualized environment it is recommended that you use `haveged`.
+## Configuration
 
-```shell
-ssh-keygen -M generate -O bits=4096 moduli.c && \
-    ssh-keygen -M screen -f moduli.c moduli && rm moduli.c
+Before you can start `aarch`, a `moduli` must be generated. This will take a
+considerable amount of time depending on your CPU, if this is being executed
+inside of a virtualized environment it is recommended that you use `haveged`.
+
+```bash
+ssh-keygen -M generate -O bits=4096 moduli.c
+ssh-keygen -M screen -f moduli.c moduli
+rm moduli.c
 ```
 
 After the `moduli` has been generated the `example.aa` file can be edited for
@@ -27,6 +45,10 @@ a fully automated installation. This file can be named anything you like as long
 as it retains it's extension (eg. machine.aa). Without a template file you will
 instead be asked to input all of the information to the console when running
 `aarch`.
+
+Boot up the machine and/or vm with an ARCHISO image.
+
+
 
 ### Custom ARCHISO
 
@@ -56,17 +78,54 @@ Instructions for building your own image can be found
 
 If instead you choose not to bake the script into an ISO, simply boot an
 existing ARCHISO, use the `E` key to edit the kernel commandline at the bootloader
-menu (Arch Linux install medium... / EFI Shell / Reboot Into...), adding
-`net.ifnames=0` to boot with traditional network interface names. Upon boot use
-`pacman -Syy git wget` to install git and wget. Then modify the root password
-and enable sshd. Finally SCP over to the machine `aarch`, `firstboot.txt`,
-`moduli` and an `.aa` template.
+menu, adding `net.ifnames=0` to boot with traditional network interface names.
 
-### Usage
+The ARCHISO will automatically log you into the root account, install `git` and
+`wget`.
 
-To run, simply execute the `aarch` script, this will read the first `.aa`
-template found in the current directory and if not found it will prompt the user
-for input.
+```shell
+pacman -Syy git wget
+```
 
-Absolute automation can be achieved by adding `aarch` to the `.bashrc` of the
-root user on the ISO in addition to including a pre-filled in `.aa` template.
+Then modify the root password and enable sshd, finally checking the assigned IP.
+
+```shell
+passwd
+systemctl start sshd
+ip a
+```
+
+Finally SCP over to the machine `aarch`, `erase_hdd`, `firstboot.txt`, `moduli`
+and an `.aa` template.
+
+## Usage
+
+In order to run `aarch` properly you will need all of the following files in
+the home directory of the root user in the livecd environment for the machine
+or virtual machine you are trying to install.
+
+```shell
+aarch erase_hdd firstboot.txt moduli
+```
+
+*In addition it also pays to have an `.aa` template.*
+
+To run, simply execute the script.
+
+```shell
+./aarch
+```
+
+This will read the first `.aa` template found in the current directory. If no
+template is found it will prompt the user to input the configuration through
+the console.
+
+*Absolute automation can be achieved by adding `aarch` to the `.bashrc` of the
+root user on the ISO in addition to including a pre-filled in `.aa` template.*
+
+## Attribution
+
+* [ArchWiki](https://wiki.archlinux.org/)
+* [Arch Linux Installation](https://kyau.net/wiki/ArchLinux:Installation)
+* [Hardening Arch Linux (HAL)](https://kyau.net/wiki/ArchLinux:Security)
+* [Mozilla SSL Configuration Generator](https://ssl-config.mozilla.org/)
