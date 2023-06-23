@@ -235,11 +235,11 @@ if [ ! -f "${_FIRST_BOOT}" ]; then
 	validate "$?"
 
 	P_CMD="Config: Server Deployment"
-	sudo hostnamectl set-deployment ${P_DEPLOYMENT} >/dev/null 2>&1
+	sudo hostnamectl set-deployment "${P_DEPLOYMENT}" >/dev/null 2>&1
 	validate "$?"
 
 	P_CMD="Config: Datacenter Location"
-	sudo hostnamectl set-location ${P_LOCATION} >/dev/null 2>&1
+	sudo hostnamectl set-location "${P_LOCATION}" >/dev/null 2>&1
 	validate "$?"
 
     printf "\\n"
@@ -256,11 +256,11 @@ if [ ! -f "${_FIRST_BOOT}" ]; then
 	validate "$?"
 
 	P_CMD="Create: /etc/systemd/network/${P_INTERFACE}.link"
-	echo -e "[Match]\nMACAddress=$(cat /sys/class/net/${P_INTERFACE}/address)\n\n[Link]\nName=${P_INTERFACE}" | sudo tee /etc/systemd/network/${P_INTERFACE}.link >/dev/null 2>&1
+	echo -e "[Match]\nMACAddress=$(cat "/sys/class/net/${P_INTERFACE}/address")\n\n[Link]\nName=${P_INTERFACE}" | sudo tee "/etc/systemd/network/${P_INTERFACE}.link" >/dev/null 2>&1
 	validate "$?"
 
 	P_CMD="Create: /etc/systemd/network/${P_INTERFACE}.network"
-	echo -e "[Match]\nName=${P_INTERFACE}\n\n[Network]\nBridge=kvm0" | sudo tee /etc/systemd/network/${P_INTERFACE}.network >/dev/null 2>&1
+	echo -e "[Match]\nName=${P_INTERFACE}\n\n[Network]\nBridge=kvm0" | sudo tee "/etc/systemd/network/${P_INTERFACE}.network" >/dev/null 2>&1
 	validate "$?"
 
 	P_CMD="Create: /etc/systemd/network/kvm0.netdev"
@@ -365,11 +365,11 @@ if [ ! -f "${_FIRST_BOOT}" ]; then
 
 		mkdir "tmp-${T_STAMP}" && cd "tmp-${T_STAMP}" || exit
 		P_CMD="Create: Private Key for CA"
-		if [ ! -e ca-key.pem ]; then openssl genrsa -des3 -passout pass:${P_CERTPASS} -out ca-key.pem 1024 >/dev/null 2>&1; fi
+		if [ ! -e ca-key.pem ]; then openssl genrsa -des3 -passout "pass:${P_CERTPASS}" -out ca-key.pem 1024 >/dev/null 2>&1; fi
 		validate "$?"
 
 		P_CMD="Create: Certificate for CA"
-		if [ ! -e ca-cert.pem ]; then openssl req -new -x509 -days 1095 -key ca-key.pem -passin pass:${P_CERTPASS} -out ca-cert.pem -utf8 -subj "${P_CERT}/CN=CA.kyaulabs.com" >/dev/null 2>&1; fi
+		if [ ! -e ca-cert.pem ]; then openssl req -new -x509 -days 1095 -key ca-key.pem -passin "pass:${P_CERTPASS}" -out ca-cert.pem -utf8 -subj "${P_CERT}/CN=CA.kyaulabs.com" >/dev/null 2>&1; fi
 		validate "$?"
 
 		P_CMD="Create: Private Key for Server"
@@ -381,7 +381,7 @@ if [ ! -f "${_FIRST_BOOT}" ]; then
 		validate "$?"
 
 		P_CMD="Create: Certificate for Server"
-		if [ ! -e server-cert.pem ]; then openssl x509 -req -days 1095 -in server-key.csr -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 -passin pass:${P_CERTPASS} -out server-cert.pem >/dev/null 2>&1; fi
+		if [ ! -e server-cert.pem ]; then openssl x509 -req -days 1095 -in server-key.csr -CA ca-cert.pem -CAkey ca-key.pem -set_serial 01 -passin "pass:${P_CERTPASS}" -out server-cert.pem >/dev/null 2>&1; fi
 		validate "$?"
 
 		P_CMD="Create: Certificate without Passphrase"

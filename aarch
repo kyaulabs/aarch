@@ -1,4 +1,5 @@
 #!/bin/bash
+# shellcheck disable=SC2320
 
 # $KYAULabs: aarch,v 2.6.6 2023/04/09 03:52:31 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
@@ -272,7 +273,7 @@ if /usr/bin/mount | /usr/bin/grep /mnt > /dev/null; then
 fi
 
 _AA_CMD="${AA_DISK}: Erase (block-level wipe)"
-/usr/bin/dd if=/dev/zero of=${AA_DISK} bs=1k count=2048 >/dev/null 2>&1
+/usr/bin/dd if=/dev/zero of="${AA_DISK}" bs=1k count=2048 >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="${AA_DISK}: Erase (filesystem signature)"
@@ -281,22 +282,22 @@ validate "$?"
 
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	_AA_CMD="${AA_DISK}: Erase (MBR/GPT data structs)"
-	/usr/bin/sgdisk -Z -o ${AA_DISK} >/dev/null 2>&1
+	/usr/bin/sgdisk -Z -o "${AA_DISK}" >/dev/null 2>&1
 	validate "$?"
 fi
 
 _AA_CMD="${AA_DISK}: Partition"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
-		/usr/bin/sgdisk -n 1:0:256M -n 2:0:+50G -n 3:0:+50G -n 4:0:-0 -t 1:ef00 -t 2:8e00 -t 3:0700 -t 4:8e00 ${AA_DISK} >/dev/null 2>&1
+		/usr/bin/sgdisk -n 1:0:256M -n 2:0:+50G -n 3:0:+50G -n 4:0:-0 -t 1:ef00 -t 2:8e00 -t 3:0700 -t 4:8e00 "${AA_DISK}" >/dev/null 2>&1
 	else
-		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 ${AA_DISK} >/dev/null 2>&1
+		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 "${AA_DISK}" >/dev/null 2>&1
 	fi
 else
 	if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
-		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 ${AA_DISK} >/dev/null 2>&1
+		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 "${AA_DISK}" >/dev/null 2>&1
 	else
-		echo -e "n\np\n\n\n+256M\nn\np\n\n\n\nt\n2\n8e\na\n1\nw\n" | /usr/bin/fdisk ${AA_DISK} >/dev/null 2>&1
+		echo -e "n\np\n\n\n+256M\nn\np\n\n\n\nt\n2\n8e\na\n1\nw\n" | /usr/bin/fdisk "${AA_DISK}" >/dev/null 2>&1
 	fi
 fi
 validate "$?"
@@ -304,9 +305,9 @@ validate "$?"
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	_AA_CMD="${AA_DISK}: Labels"
 	if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
-		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" -c 3:"win10" -c 4:"kali" ${AA_DISK} >/dev/null 2>&1
+		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" -c 3:"win10" -c 4:"kali" "${AA_DISK}" >/dev/null 2>&1
 	else
-		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" ${AA_DISK} >/dev/null 2>&1
+		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" "${AA_DISK}" >/dev/null 2>&1
 	fi
 	validate "$?"
 fi
@@ -324,21 +325,21 @@ if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	desc "Prereq: [0mLUKS2"
 	_AA_CMD="LUKS2: Clear Metadata"
 	/usr/bin/dmsetup remove_all >/dev/null 2>&1
-	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
+	/usr/bin/pvremove -y -ff "${AA_DISK}"* >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="LUKS2: Encrypting Partition ${AA_DISK}2"
 	printf "\n\x1b[38;5;6m ≡ WARNING:\x1b[0m encryption password will be needed at every boot\n"
-	/usr/bin/cryptsetup --type luks2 -q -c aes-xts-plain64 -l 512 -h sha512 --pbkdf argon2i --pbkdf-force-iterations 4 --pbkdf-memory 1048576 --pbkdf-parallel 1 --label archlinux --subsystem "" --use-random luksFormat ${AA_DISK}2
+	/usr/bin/cryptsetup --type luks2 -q -c aes-xts-plain64 -l 512 -h sha512 --pbkdf argon2i --pbkdf-force-iterations 4 --pbkdf-memory 1048576 --pbkdf-parallel 1 --label archlinux --subsystem "" --use-random luksFormat "${AA_DISK}2"
 	validate "$?"
 
 	_AA_CMD="LUKS2: Decrypting Partition ${AA_DISK}2"
 	printf "\n"
-	/usr/bin/cryptsetup open --type luks2 ${AA_DISK}2 cryptlvm
+	/usr/bin/cryptsetup open --type luks2 "${AA_DISK}2" cryptlvm
 	validate "$?"
 else
 	_AA_CMD="LVM: Clear Metadata"
-	/usr/bin/pvremove -y -ff ${AA_DISK}* >/dev/null 2>&1
+	/usr/bin/pvremove -y -ff "${AA_DISK}"* >/dev/null 2>&1
 	/usr/bin/dmsetup remove_all >/dev/null 2>&1
 	validate "$?"
 fi
@@ -351,67 +352,67 @@ _AA_CMD="LVM: Initialize Physical Volume"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	/usr/bin/pvcreate --yes -ff /dev/mapper/cryptlvm >/dev/null 2>&1
 else
-	/usr/bin/pvcreate --yes -ff ${AA_DISK}2 >/dev/null 2>&1
+	/usr/bin/pvcreate --yes -ff "${AA_DISK}2" >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="LVM: Create Volume Group"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	/usr/bin/vgcreate --yes ${AA_HOST} /dev/mapper/cryptlvm >/dev/null 2>&1
+	/usr/bin/vgcreate --yes "${AA_HOST}" /dev/mapper/cryptlvm >/dev/null 2>&1
 else
-	/usr/bin/vgcreate --yes ${AA_HOST} ${AA_DISK}2 >/dev/null 2>&1
+	/usr/bin/vgcreate --yes "${AA_HOST}" "${AA_DISK}2" >/dev/null 2>&1
 fi
 validate "$?"
 
 if [ "${AA_SWAP}" -ne "0" ]; then
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-swap)"
-	/usr/bin/lvcreate --yes -L ${AA_SWAP}G ${AA_HOST} --name swap >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L "${AA_SWAP}G" "${AA_HOST}" --name swap >/dev/null 2>&1
 	validate "$?"
 fi
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-root)"
-/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name root >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name root >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-usr)"
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	/usr/bin/lvcreate --yes -L 5G ${AA_HOST} --name usr >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 5G "${AA_HOST}" --name usr >/dev/null 2>&1
 else
-	/usr/bin/lvcreate --yes -L 8G ${AA_HOST} --name usr >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 8G "${AA_HOST}" --name usr >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var)"
-/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name var >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_cache)"
 if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	/usr/bin/lvcreate --yes -L 1G ${AA_HOST} --name var_cache >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 1G "${AA_HOST}" --name var_cache >/dev/null 2>&1
 else
-	/usr/bin/lvcreate --yes -L 2G ${AA_HOST} --name var_cache >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 2G "${AA_HOST}" --name var_cache >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log)"
-/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name var_log >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var_log >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log_audit)"
-/usr/bin/lvcreate --yes -L 512M ${AA_HOST} --name var_log_audit >/dev/null 2>&1
+/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var_log_audit >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
-	/usr/bin/lvcreate --yes -L 1G ${AA_HOST} --name home >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 1G "${AA_HOST}" --name home >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-srv)"
-	/usr/bin/lvcreate --yes -l +100%FREE ${AA_HOST} --name srv >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -l +100%FREE "${AA_HOST}" --name srv >/dev/null 2>&1
 	validate "$?"
 else
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
-	/usr/bin/lvcreate --yes -l +100%FREE ${AA_HOST} --name home >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -l +100%FREE "${AA_HOST}" --name home >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -420,61 +421,61 @@ printf "\\n"
 # Prereq: Filesystems {{{
 desc "Prereq: [0mFilesystems"
 _AA_CMD="Format: Ext4 (${AA_HOST}-root)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/root >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/root" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-usr)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/usr >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/usr" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/var" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var_cache)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var_cache >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/var_cache" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var_log)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var_log >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/var_log" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-var_log_audit)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/var_log_audit >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/var_log_audit" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Format: Ext4 (${AA_HOST}-home)"
-/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/home >/dev/null 2>&1
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/home" >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_AA_CMD="Format: Ext4 (${AA_HOST}-srv)"
-	/usr/bin/mkfs.ext4 -O metadata_csum /dev/${AA_HOST}/srv >/dev/null 2>&1
+	/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/srv" >/dev/null 2>&1
 	validate "$?"
 fi
 
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	_AA_CMD="Format: FAT32 (${AA_DISK}1)"
-	/usr/bin/mkfs.fat -F32 ${AA_DISK}1 >/dev/null 2>&1
+	/usr/bin/mkfs.fat -F32 "${AA_DISK}1" >/dev/null 2>&1
 	validate "$?"
 else
 	_AA_CMD="Format: Ext4 (${AA_DISK}1)"
-	/usr/bin/mkfs.ext4 -O metadata_csum ${AA_DISK}1 >/dev/null 2>&1
+	/usr/bin/mkfs.ext4 -O metadata_csum "${AA_DISK}1" >/dev/null 2>&1
 	validate "$?"
 fi
 
 if [ "${AA_SWAP}" -ne "0" ]; then
 	_AA_CMD="Swap: Create"
-	/usr/bin/mkswap /dev/${AA_HOST}/swap >/dev/null 2>&1
+	/usr/bin/mkswap "/dev/${AA_HOST}/swap" >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Swap: Enable"
-	/usr/bin/swapon /dev/${AA_HOST}/swap >/dev/null 2>&1
+	/usr/bin/swapon "/dev/${AA_HOST}/swap" >/dev/null 2>&1
 	validate "$?"
 fi
 
 _AA_CMD="Mount: ${AA_HOST}-root => /mnt"
-/usr/bin/mount -o defaults,noatime,journal_checksum /dev/${AA_HOST}/root /mnt >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,journal_checksum "/dev/${AA_HOST}/root" /mnt >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Create Directory Structure"
@@ -487,24 +488,24 @@ validate "$?"
 
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	_AA_CMD="Mount: UEFI => /mnt/boot"
-	/usr/bin/mount ${AA_DISK}1 /mnt/boot >/dev/null 2>&1
+	/usr/bin/mount "${AA_DISK}1" /mnt/boot >/dev/null 2>&1
 	validate "$?"
 else
 	_AA_CMD="Mount: ${AA_DISK}2 => /mnt/boot"
-	/usr/bin/mount ${AA_DISK}1 /mnt/boot >/dev/null 2>&1
+	/usr/bin/mount "${AA_DISK}1" /mnt/boot >/dev/null 2>&1
 	validate "$?"
 fi
 
 _AA_CMD="Mount: ${AA_HOST}-home => /mnt/home"
-/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/${AA_HOST}/home /mnt/home >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum "/dev/${AA_HOST}/home" /mnt/home >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-usr => /mnt/usr"
-/usr/bin/mount -o defaults,noatime,journal_checksum /dev/${AA_HOST}/usr /mnt/usr >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,journal_checksum "/dev/${AA_HOST}/usr" /mnt/usr >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var => /mnt/var"
-/usr/bin/mount -o defaults,noatime,nosuid,journal_checksum /dev/${AA_HOST}/var /mnt/var >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nosuid,journal_checksum "/dev/${AA_HOST}/var" /mnt/var >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Create Directory Structure: /var"
@@ -512,21 +513,21 @@ _AA_CMD="Create Directory Structure: /var"
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var_cache => /mnt/var/cache"
-/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/${AA_HOST}/var_cache /mnt/var/cache >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum "/dev/${AA_HOST}/var_cache" /mnt/var/cache >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var_log => /mnt/var/log"
-/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/${AA_HOST}/var_log /mnt/var/log >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum "/dev/${AA_HOST}/var_log" /mnt/var/log >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Mount: ${AA_HOST}-var_log_audit => /mnt/var/log/audit"
 /usr/bin/mkdir -p /mnt/var/log/audit >/dev/null 2>&1
-/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum /dev/${AA_HOST}/var_log_audit /mnt/var/log/audit >/dev/null 2>&1
+/usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum "/dev/${AA_HOST}/var_log_audit" /mnt/var/log/audit >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_AA_CMD="Mount: ${AA_HOST}-srv => /mnt/srv"
-	/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum /dev/${AA_HOST}/srv /mnt/srv >/dev/null 2>&1
+	/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum "/dev/${AA_HOST}/srv" /mnt/srv >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -679,7 +680,7 @@ _AA_CMD="Modify: Superuser Password"
 validate "$?"
 
 _AA_CMD="Create: User Account ${AA_USERNAME}"
-/usr/bin/arch-chroot /mnt useradd -m -G wheel,systemd-journal -s /bin/bash ${AA_USERNAME}
+/usr/bin/arch-chroot /mnt useradd -m -G wheel,systemd-journal -s /bin/bash "${AA_USERNAME}"
 validate "$?"
 
 _AA_CMD="Modify: User Password ${AA_USERNAME}"
@@ -701,12 +702,12 @@ validate "$?"
 
 _AA_CMD="Groupadd: ssh"
 /usr/bin/arch-chroot /mnt groupadd ssh
-/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} ssh >/dev/null 2>&1
+/usr/bin/arch-chroot /mnt gpasswd -a "${AA_USERNAME}" ssh >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Groupadd: shm"
 /usr/bin/arch-chroot /mnt groupadd shm
-/usr/bin/arch-chroot /mnt gpasswd -a ${AA_USERNAME} shm >/dev/null 2>&1
+/usr/bin/arch-chroot /mnt gpasswd -a "${AA_USERNAME}" shm >/dev/null 2>&1
 validate "$?"
 
 printf "\\n"
@@ -755,7 +756,7 @@ EOF
 		fi
 	fi
 	if [ "${AA_ENCRYPT}" -eq "1" ]; then
-		_UUID_LUKS=$(blkid -s UUID -o value ${AA_DISK}2)
+		_UUID_LUKS=$(blkid -s UUID -o value "${AA_DISK}2")
 		_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=discard root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
 	fi
 	if [ "${AA_UCODE^^}" = "AMD" ]; then
@@ -769,8 +770,8 @@ EOF
 	validate "$?"
 else
 	_AA_CMD="Install: GRUB2"
-	/usr/bin/partprobe ${AA_DISKO}
-	/usr/bin/arch-chroot /mnt grub-install --target=i386-pc ${AA_DISKO} >/dev/null 2>&1
+	/usr/bin/partprobe "${AA_DISKO}"
+	/usr/bin/arch-chroot /mnt grub-install --target=i386-pc "${AA_DISKO}" >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Secure: GRUB2"
@@ -961,7 +962,7 @@ EOF
 fi
 
 _AA_CMD="Symlink: /etc/localtime"
-/usr/bin/arch-chroot /mnt ln -sf /usr/share/zoneinfo/${AA_TZ} /etc/localtime
+/usr/bin/arch-chroot /mnt ln -sf "/usr/share/zoneinfo/${AA_TZ}" /etc/localtime
 validate "$?"
 
 _AA_CMD="Sync: Hardware Clock"
@@ -1124,7 +1125,7 @@ validate "$?"
 
 if [ -n "${AA_WIFI_SSID}" ]; then
 	_AA_CMD="Create: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
-	/usr/bin/arch-chroot /mnt /usr/bin/wpa_passphrase ${AA_WIFI_SSID} ${AA_WIFI_PASSWD} > /mnt/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+	/usr/bin/arch-chroot /mnt /usr/bin/wpa_passphrase "${AA_WIFI_SSID}" "${AA_WIFI_PASSWD}" > /mnt/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
 	validate "$?"
 
 	_AA_CMD="Config: wlan0.network"
@@ -1238,38 +1239,38 @@ echo -e "${AA_USERNAME} ALL=(ALL) NOPASSWD: ALL\n" > /mnt/etc/sudoers.d/temporar
 validate "$?"
 
 _AA_CMD="Download: AUR Helper (${AA_PKGMAN})"
-/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c "git clone https://aur.archlinux.org/${AA_PKGMAN}.git" >/dev/null 2>&1
+/usr/bin/arch-chroot /mnt runuser -l "${AA_USERNAME}" -c "git clone https://aur.archlinux.org/${AA_PKGMAN}.git" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Compile: AUR Helper (${AA_PKGMAN})"
-/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c "cd ${AA_PKGMAN} && makepkg -fsr --noconfirm" >/dev/null 2>&1
+/usr/bin/arch-chroot /mnt runuser -l "${AA_USERNAME}" -c "cd ${AA_PKGMAN} && makepkg -fsr --noconfirm" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Install: AUR Helper (${AA_PKGMAN})"
-T_PKGAUR=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/${AA_PKGMAN}/ | /usr/bin/grep .pkg.tar.zst)
+T_PKGAUR=$(/usr/bin/arch-chroot /mnt ls "/home/${AA_USERNAME}/${AA_PKGMAN}/" | /usr/bin/grep .pkg.tar.zst)
 /usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/${AA_PKGMAN}/${T_PKGAUR}" --noconfirm >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Remove: AUR Helper Source"
-/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c "rm -rf ${AA_PKGMAN}"
+/usr/bin/arch-chroot /mnt runuser -l "${AA_USERNAME}" -c "rm -rf ${AA_PKGMAN}"
 validate "$?"
 
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	_AA_CMD="Download: Thinkfan (AUR)"
-	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'git clone https://aur.archlinux.org/thinkfan-git.git' >/dev/null 2>&1
+	/usr/bin/arch-chroot /mnt runuser -l "${AA_USERNAME}" -c 'git clone https://aur.archlinux.org/thinkfan-git.git' >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Compile: Thinkfan (AUR)"
-	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'cd thinkfan-git && makepkg -fsr --noconfirm' >/dev/null 2>&1
+	/usr/bin/arch-chroot /mnt runuser -l "${AA_USERNAME}" -c 'cd thinkfan-git && makepkg -fsr --noconfirm' >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Install: Thinkfan (AUR)"
-	T_THINKFAN=$(/usr/bin/arch-chroot /mnt ls /home/${AA_USERNAME}/thinkfan-git/ | /usr/bin/grep .pkg.tar.zst)
+	T_THINKFAN=$(/usr/bin/arch-chroot /mnt ls "/home/${AA_USERNAME}/thinkfan-git/" | /usr/bin/grep .pkg.tar.zst)
 	/usr/bin/arch-chroot /mnt pacman -U "/home/${AA_USERNAME}/thinkfan-git/${T_THINKFAN}" --noconfirm >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="Remove: Thinkfan Source"
-	/usr/bin/arch-chroot /mnt runuser -l ${AA_USERNAME} -c 'rm -rf thinkfan-git'
+	/usr/bin/arch-chroot /mnt runuser -l "${AA_USERNAME}" -c 'rm -rf thinkfan-git'
 	validate "$?"
 
 	_AA_CMD="Remove: Thinkfan Build Depends"
@@ -1694,11 +1695,11 @@ _AA_CMD="Secure: sshd_config"
 validate "$?"
 
 _AA_CMD="Create: ~/.ssh/"
-/usr/bin/mkdir -p /mnt/home/${AA_USERNAME}/.ssh/
+/usr/bin/mkdir -p "/mnt/home/${AA_USERNAME}/.ssh/"
 validate "$?"
 
 _AA_CMD="Download: ~/.ssh/authorized_keys"
-/usr/bin/wget ${AA_SSH_KEY} -O /mnt/home/${AA_USERNAME}/.ssh/authorized_keys >/dev/null 2>&1
+/usr/bin/wget "${AA_SSH_KEY}" -O "/mnt/home/${AA_USERNAME}/.ssh/authorized_keys" >/dev/null 2>&1
 validate "$?"
 
 _AA_CMD="Create: /etc/ssh/ssh_config"
@@ -1724,8 +1725,8 @@ EOF
 validate "$?"
 
 _AA_CMD="Permissions: ~/.ssh/"
-/usr/bin/arch-chroot /mnt chown -R ${AA_USERNAME}:${AA_USERNAME} /home/${AA_USERNAME}/.ssh/
-/usr/bin/arch-chroot /mnt chmod -R go-rwx /home/${AA_USERNAME}/.ssh/
+/usr/bin/arch-chroot /mnt chown -R "${AA_USERNAME}":"${AA_USERNAME}" "/home/${AA_USERNAME}/.ssh/"
+/usr/bin/arch-chroot /mnt chmod -R go-rwx "/home/${AA_USERNAME}/.ssh/"
 validate "$?"
 
 _AA_CMD="Create: /etc/ssh/moduli"

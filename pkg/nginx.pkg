@@ -183,7 +183,7 @@ pikaur -Syy apache-tools composer cronie curl mariadb minify nginx php-fpm sassc
 validate "$?"
 
 P_CMD="Install: PHP Modules"
-T_PKG=(librsvg php-apcu php-gd php-geoip php-imagick php-imap php-intl php-memcache php-odbc php-smbclient php-sodium php-sqlite)
+T_PKG=(librsvg php-apcu php-gd php-geoip php-imagick php-memcache php-odbc php-sodium php-sqlite)
 if [ "${P_DEVWEB}" -eq "1" ]; then
 	T_PKG+=(xdebug)
 fi
@@ -191,12 +191,13 @@ pikaur -Syy "${T_PKG[@]}" --noedit --nodiff --noconfirm >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Install: Create Web Server Environment"
-sudo mkdir -m775 -p ${P_ROOTDIR}/nginx && sudo chown http:http ${P_ROOTDIR}/nginx && sudo -u http mkdir -m770 -p ${P_ROOTDIR}/nginx/conf.d ${P_ROOTDIR}/nginx/https/ip ${P_ROOTDIR}/nginx/https/error ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/ssl ${P_ROOTDIR}/nginx/vhosts.d && sudo -u http mkdir -m750 ${P_ROOTDIR}/nginx/sql && sudo chown mysql:mysql ${P_ROOTDIR}/nginx/sql
+sudo sh -c "mkdir -m2775 -p ${P_ROOTDIR}/nginx && mkdir -m2770 -p ${P_ROOTDIR}/nginx/https/{ip,error} ${P_ROOTDIR}/nginx/{conf.d,logs,sql,ssl,vhosts.d} && chown -R http:http ${P_ROOTDIR}/nginx && chown mysql:mysql ${P_ROOTDIR}/nginx/sql"
+#sudo mkdir -m775 -p "${P_ROOTDIR}/nginx" && sudo chown http:http "${P_ROOTDIR}/nginx" && sudo -u http mkdir -m770 -p "${P_ROOTDIR}/nginx/conf.d" "${P_ROOTDIR}/nginx/https/ip" "${P_ROOTDIR}/nginx/https/error" "${P_ROOTDIR}/nginx/logs" "${P_ROOTDIR}/nginx/ssl" "${P_ROOTDIR}/nginx/vhosts.d" && sudo -u http mkdir -m750 "${P_ROOTDIR}/nginx/sql" && sudo chown mysql:mysql "${P_ROOTDIR}/nginx/sql"
 validate "$?"
 
 if [ "${P_ROOTDIR}" != "/" ]; then
 	P_CMD="Install: Directory Symlink"
-	cd / && sudo ln -s ${P_ROOTDIR}/nginx . >/dev/null 2>&1
+	cd / && sudo ln -s "${P_ROOTDIR}/nginx" . >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -814,7 +815,7 @@ EOF
 	validate "$?"
 
 	P_CMD="Domains{$s_domain}: Create Directories"
-	sudo mkdir -p "${P_ROOTDIR}/nginx/logs/${l_name}" "${P_ROOTDIR}/nginx/https/${l_name}/api" "${P_ROOTDIR}/nginx/https/${l_name}/www" >/dev/null 2>&1
+	sudo mkdir -m2770 -p "${P_ROOTDIR}/nginx/logs/${l_name}" "${P_ROOTDIR}/nginx/https/${l_name}/api" "${P_ROOTDIR}/nginx/https/${l_name}/www" >/dev/null 2>&1
 	validate "$?"
 }
 
@@ -830,7 +831,7 @@ if [ "${#P_PRIVATE[*]}" -gt 0 ]; then
 fi
 
 P_CMD="Domains: Directory Permissions"
-sudo chmod -R 770 ${P_ROOTDIR}/nginx/logs ${P_ROOTDIR}/nginx/https >/dev/null 2>&1
+sudo chmod -R 2770 "${P_ROOTDIR}/nginx/logs" "${P_ROOTDIR}/nginx/https" >/dev/null 2>&1
 validate "$?"
 
 printf "\\n"
@@ -840,7 +841,7 @@ desc "SSL"
 
 if [ "${#P_PRIVATE[*]}" -gt 0 ]; then
 	P_CMD="Domains (Private): Update Script"
-	sudo install -g http -m 770 -o http /dev/null ${P_ROOTDIR}/nginx/ssl/update.sh >/dev/null 2>&1
+	sudo install -g http -m 770 -o http /dev/null "${P_ROOTDIR}/nginx/ssl/update.sh" >/dev/null 2>&1
 	sudo tee -a "${P_ROOTDIR}/nginx/ssl/update.sh" <<EOF >/dev/null 2>&1
 #!/bin/bash
 
@@ -905,12 +906,12 @@ sudo mount -o noexec,remount /tmp >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Finalize: Directory Permissions"
-sudo chown -R http:http ${P_ROOTDIR}/nginx/conf.d/ ${P_ROOTDIR}/nginx/https/ ${P_ROOTDIR}/nginx/logs/ ${P_ROOTDIR}/nginx/ssl/ ${P_ROOTDIR}/nginx/vhosts.d/
+sudo chown -R http:http "${P_ROOTDIR}"/nginx/{conf.d,https,logs,ssl,vhosts.d}
 validate "$?"
 
 if [ "${#P_IPS[*]}" -gt 0 ]; then
 	P_CMD="Finalize: External IPs Permissions"
-	sudo chmod -R 660 ${P_ROOTDIR}/nginx/vhosts.d && sudo chown -R http:http ${P_ROOTDIR}/nginx/vhosts.d && sudo chmod 770 ${P_ROOTDIR}/nginx/vhosts.d >/dev/null 2>&1
+	sudo chmod -R 660 "${P_ROOTDIR}"/nginx/vhosts.d && sudo chown -R http:http "${P_ROOTDIR}"/nginx/vhosts.d && sudo chmod 770 "${P_ROOTDIR}"/nginx/vhosts.d >/dev/null 2>&1
 	validate "$?"
 fi
 

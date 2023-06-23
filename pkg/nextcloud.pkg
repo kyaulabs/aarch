@@ -189,11 +189,11 @@ pikaur -Syy nextcloud nextcloud-app-bookmarks nextcloud-app-calendar nextcloud-a
 validate "$?"
 
 P_CMD="PreReq: Create Environment"
-sudo mkdir -m 750 -p ${P_DATADIR}/apps ${P_DATADIR}/data >/dev/null 2>&1
+sudo mkdir -m 750 -p "${P_DATADIR}/apps" "${P_DATADIR}/data" >/dev/null 2>&1
 validate "$?"
 
 P_CMD="PreReq: Environmental Permissions"
-sudo chown -R nextcloud:nextcloud ${P_DATADIR} >/dev/null 2>&1
+sudo chown -R nextcloud:nextcloud "${P_DATADIR}" >/dev/null 2>&1
 validate "$?"
 
 printf "\\n"
