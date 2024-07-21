@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: nginx.pkg,v 1.3.4 2022/08/04 12:16:52 kyau Exp $
+# $KYAULabs: nginx.pkg,v 1.3.5 2024/07/21 04:20:49 -0700 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -10,7 +10,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # KYAU Labs - AArch: NGINX Package
-# Copyright (C) 2023 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2024 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -139,11 +139,6 @@ if [ "${#P_PUBLIC[*]}" -eq 0 ]; then
 	T_DOMAIN=$(hostname | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
 	P_PUBLIC=("${T_DOMAIN}")
 fi
-# Private Domains
-if [ "${#P_PRIVATE[*]}" -eq 0 ]; then
-	T_DOMAIN=$(hostname | awk -F. '{printf "%s.%s\n",$(NF-1),$(NF-0)}')
-	P_PRIVATE=("${T_DOMAIN}")
-fi
 # }}}
 # Variables: Summary {{{
 print_logo
@@ -179,7 +174,7 @@ sudo mount -o exec,remount /tmp >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Install: NGINX/PHP/SQL"
-pikaur -Syy apache-tools composer cronie curl mariadb minify nginx php-fpm sassc wget --noedit --nodiff --noconfirm >/dev/null 2>&1
+pikaur -Syy apache-tools composer cronie curl mariadb minify nginx php-fpm dart-sass wget --noedit --nodiff --noconfirm >/dev/null 2>&1
 validate "$?"
 
 P_CMD="Install: PHP Modules"
@@ -251,7 +246,7 @@ sudo mysql -e "DROP DATABASE IF EXISTS test" >/dev/null 2>&1
 validate "$?"
 
 P_CMD="SQL: Create User"
-sudo mysql -e "CREATE USER '${P_USERNAME}'@'localhost' IDENTIFIED BY '${P_PASSWD}';GRANT ALL PRIVILEGES ON *.* TO '${P_USERNAME}'@'localhost' WITH GRANT OPTION;FLUSH PRIVILEGES" >/dev/null 2>&1
+sudo mysql -e "CREATE USER '${P_USERNAME}'@'localhost' IDENTIFIED VIA unix_socket OR mysql_native_password USING 'invalid';SET PASSWORD FOR '${P_USERNAME}'@'localhost' = PASSWORD('${P_PASSWD}');GRANT ALL PRIVILEGES ON *.* TO '${P_USERNAME}'@'localhost' WITH GRANT OPTION;FLUSH PRIVILEGES" >/dev/null 2>&1
 validate "$?"
 
 printf "\\n"
@@ -301,9 +296,8 @@ validate "$?"
 P_CMD="PHP: Enable Default Extensions"
 sudo install -g root -m 644 -o root /dev/null /etc/php/conf.d/defaults.ini
 sudo tee -a /etc/php/conf.d/defaults.ini << EOF >/dev/null 2>&1
-; \$KYAULabs: defaults.ini,v 1.0.1 2021/05/24 12:00:39 kyau Exp \$
+; \$KYAULabs: defaults.ini,v 1.0.2 2024/07/21 04:12:16 -0700 kyau Exp \$
 
-extension=apcu
 extension=bcmath
 extension=bz2
 extension=exif
@@ -525,19 +519,40 @@ http {
 EOF
 validate "$?"
 
+P_CMD="NGINX: Create conf.d/php.defaults"
+sudo install -g http -m 660 -o http /dev/null /nginx/conf.d/php.defaults >/dev/null 2>&1
+validate "$?"
+
+P_CMD="NGINX: Config conf.d/php.defaults"
+sudo tee -a /nginx/conf.d/php.defaults << EOF >/dev/null 2>&1
+# \$KYAULabs: php.defaults,v 1.0.0 2024/07/21 04:18:46 -0700 kyau Exp \$
+
+try_files \$fastcgi_script_name =404;
+include /nginx/conf.d/fastcgi_params;
+fastcgi_buffers 8 16k;
+fastcgi_buffer_size 32k;
+fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+
+# vim: ft=nginx sts=4 sw=4 ts=4 noet :
+EOF
+validate "$?"
+
 P_CMD="NGINX: Create conf.d/vhost.defaults"
 sudo install -g http -m 660 -o http /dev/null /nginx/conf.d/vhost.defaults >/dev/null 2>&1
 validate "$?"
 
 P_CMD="NGINX: Config conf.d/vhost.defaults"
 sudo tee -a /nginx/conf.d/vhost.defaults << EOF >/dev/null 2>&1
-# \$KYAULabs: vhost.defaults,v 1.0.7 2021/05/16 12:48:55 kyau Exp \$
+# \$KYAULabs: vhost.defaults,v 1.0.8 2024/07/21 04:14:03 -0700 kyau Exp \$
 
-## SSL/TLS (https://cipherlist.dev/)
+## SSL/TLS (https://cipherlist.eu/)
 ssl_dhparam /nginx/ssl/dhparam4096.pem; # openssl dhparam -out dhparam4096.pem 4096
 ssl_protocols TLSv1.3; # Requires nginx >= 1.13.0
-ssl_ciphers EECDH+CHACHA20:EECDH+AES;
-ssl_ecdh_curve X25519; # Requires nginx >= 1.1.0
+ssl_ciphers EECDH+CHACHA20:EECDH+AESGCM:EDH+AESGCM;
+ssl_conf_command Ciphersuites TLS_CHACHA20_POLY1305_SHA256:TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256;
+ssl_conf_command Options PrioritizeChaCha;
+ssl_early_data on; # Requires nginx >= 1.15.3
+ssl_ecdh_curve secp384r1; # Requires nginx >= 1.1.0
 ssl_session_cache shared:SSL:10m;
 ssl_session_tickets off; # Requires nginx >= 1.5.9
 ssl_session_timeout 10m;
@@ -548,6 +563,8 @@ resolver 1.1.1.1 1.0.0.1 [2606:4700:4700::1111] [2606:4700:4700::1001] valid=60s
 resolver_timeout 2s;
 
 # security settings
+add_header Permissions-Policy "geolocation=(),midi=(),sync-xhr=(),microphone=(),camera=(),magnetometer=(),gyroscope=(),fullscreen=(self),payment=()";
+add_header Referrer-Policy "strict-origin";
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
 add_header X-Frame-Options DENY;
 add_header X-Content-Type-Options nosniff;
@@ -563,7 +580,7 @@ validate "$?"
 
 P_CMD="NGINX: Config conf.d/uri.defaults"
 sudo tee -a /nginx/conf.d/uri.defaults << EOF >/dev/null 2>&1
-# \$KYAULabs: uri.defaults,v 1.0.3 2021/05/16 12:46:22 kyau Exp \$
+# \$KYAULabs: uri.defaults,v 1.0.4 2024/07/21 04:30:04 -0700 kyau Exp \$
 
 # remove \`robots.txt\` and all favicons from the logs
 location ~* "^/(favicon\.\S{3,5}|robots\.txt)$" {
@@ -602,18 +619,6 @@ location ~* \.(?:svgz?|ttf|ttc|otf|eot|woff2?)\$ {
 # html processing
 location ~* \.html\$ {
     try_files \$uri \$uri/ /index.html =404;
-}
-
-# http error pages
-error_page 404 /404;
-error_page 500 502 503 504 /50x;
-location = /404 {
-    root /nginx/https/error;
-    index 404.php;
-}
-location = /50x {
-    root /nginx/https/error;
-    index 50x.php;
 }
 
 # vim: ft=nginx sts=4 sw=4 ts=4 noet :
@@ -677,19 +682,20 @@ EOF
 
 	P_CMD="Domains{$s_domain}: Create NGINX Config"
 	sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
-# \$KYAULabs: ${l_name}.conf,v 1.1.6 2021/05/16 12:47:14 kyau Exp \$
+# \$KYAULabs: ${l_name}.conf,v 1.1.7 2024/07/21 04:34:45 -0700 kyau Exp \$
 
 EOF
 	if [[ "$2" -ne 0 ]]; then
 		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 ## Redirect all WWW to Non-WWW (SSL)
 server {
-	listen *:443 ssl http2;
-	listen [::]:443 ssl http2;
+	listen *:443 ssl;
+	listen [::]:443 ssl;
+	http2 on;
 	server_name www.${l_domain};
 
 	#access_log /nginx/logs/${l_name}/www-access.log;
-	error_log /nginx/logs/${l_name}/www-error.log;
+	#error_log /nginx/logs/${l_name}/www-error.log;
 
 	ssl_certificate /etc/letsencrypt/live/${l_domain}/fullchain.pem;
 	ssl_certificate_key /etc/letsencrypt/live/${l_domain}/privkey.pem;
@@ -705,8 +711,9 @@ EOF
 	sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
 ## ${l_domain}
 server {
-	listen *:443 ssl http2;
-	listen [::]:443 ssl http2;
+	listen *:443 ssl;
+	listen [::]:443 ssl;
+	http2 on;
 	server_name ${l_domain};
 
 	#access_log /nginx/logs/${l_name}/${l_name}-access.log;
@@ -737,6 +744,7 @@ EOF
 	}
 
 	location @rewrite {
+		rewrite ^(403|404|50x)/?$ /$1.php last;
 		#rewrite ^/directory/\$ /script.php?x=directory last;
 	}
 
@@ -755,24 +763,49 @@ EOF
 
 	# php scripts
 	location ~* [^/]\.php(/|\$) {
-		try_files \$fastcgi_script_name =404;
-		include /nginx/conf.d/fastcgi_params;
-		fastcgi_buffers 8 16k;
-		fastcgi_buffer_size 32k;
-		fastcgi_index index.php;
-		fastcgi_split_path_info ^(.+?\.php)(/.*)\$;
+		fastcgi_intercept_errors on;
 		fastcgi_pass unix:/run/php-fpm/php-fpm-${l_name}.sock;
+		include /nginx/conf.d/php.defaults;
+		fastcgi_index index.php;
+	}
+
+	# http error pages
+	error_page 403 /403.php;
+	error_page 404 /404.php;
+	error_page 500 /50x.php;
+	error_page 502 503 504 /50x.php;
+	location = /404.php {
+		root /nginx/https/error;
+		fastcgi_pass unix:/run/php-fpm/php-fpm-${l_name}.sock;
+		include /nginx/conf.d/php.defaults;
+		fastcgi_index 404.php;
+		internal;
+	}
+	location = /403.php {
+		root /nginx/https/error;
+		fastcgi_pass unix:/run/php-fpm/php-fpm-${l_name}.sock;
+		include /nginx/conf.d/php.defaults;
+		fastcgi_index 403.php;
+		internal;
+	}
+	location = /50x.php {
+		root /nginx/https/error;
+		fastcgi_pass unix:/run/php-fpm/php-fpm-${l_name}.sock;
+		include /nginx/conf.d/php.defaults;
+		fastcgi_index 50x.php;
+		internal;
 	}
 }
 
 EOF
 	if [[ "$2" -ne 0 ]]; then
 		sudo tee -a "/nginx/vhosts.d/${l_name}.conf" << EOF >/dev/null 2>&1
-## api.${l_domain}
+## cdn.${l_domain}
 server {
-	listen *:443 ssl http2;
-	listen [::]:443 ssl http2;
-	server_name api.${l_domain};
+	listen *:443 ssl;
+	listen [::]:443 ssl;
+	http2 on;
+	server_name cdn.${l_domain};
 
 	#access_log /nginx/logs/${l_name}/api-access.log;
 	error_log /nginx/logs/${l_name}/api-error.log;
@@ -782,8 +815,21 @@ server {
 	ssl_trusted_certificate /etc/letsencrypt/live/${l_domain}/chain.pem;
 
 	include /nginx/conf.d/vhost.defaults;
+	add_header 'Access-Control-Allow-Origin' "https://${l_domain}";
 
-	root /nginx/https/${l_name}/api;
+	root /nginx/https/${l_name}/cdn;
+
+	location = / {
+		return 301 https://${l_name};
+	}
+
+	location ~ ^/(css|fonts|images|javascript)/$ {
+		return 301 https://${l_name};
+	}
+
+	location ~ ^/sass/ {
+		return 301 https://${l_name};
+	}
 
 	location / {
 		try_files \$uri \$uri/ @rewrite;
@@ -795,16 +841,11 @@ server {
 
 	include /nginx/conf.d/uri.defaults;
 
-	# php scripts
-	location ~* [^/]\.php(/|\$) {
-		try_files \$fastcgi_script_name =404;
-		include /nginx/conf.d/fastcgi_params;
-		fastcgi_buffers 8 16k;
-		fastcgi_buffer_size 32k;
-		fastcgi_index index.php;
-		fastcgi_split_path_info ^(.+?\.php)(/.*)\$;
-		fastcgi_pass unix:/run/php-fpm/php-fpm-${l_name}.sock;
-	}
+	# http error pages
+	error_page 403 https://${l_name}/403;
+	error_page 404 https://${l_name}/404;
+	error_page 500 https://${l_name}/50x;
+	error_page 502 503 504 https://${l_name}/50x;
 }
 
 EOF
