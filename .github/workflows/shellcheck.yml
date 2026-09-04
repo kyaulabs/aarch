@@ -12,8 +12,8 @@ jobs:
     name: Shellcheck
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Run ShellCheck
-      uses: ludeeus/action-shellcheck@master
+      uses: ludeeus/action-shellcheck@2.0.0
       with:
-        additional_files: 'aarch erase_hdd example.aa firstboot.txt kvm.pkg nextcloud.pkg nginx.pkg'
+        additional_files: 'example.aa pkg/kvm.pkg pkg/nextcloud.pkg pkg/nginx.pkg'

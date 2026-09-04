@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck disable=SC2320
 
-# $KYAULabs: aarch,v 2.6.6 2023/04/09 03:52:31 kyau Exp $
+# $KYAULabs: aarch.sh,v 2.6.7 2026/08/06 12:52:25 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -11,7 +11,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2024 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2026 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -26,7 +26,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-set -u
+set -euo pipefail
 IFS=$'\n\t'
 
 # Default Functions {{{
@@ -43,6 +43,17 @@ function print_logo() {
 }
 function desc() {
 	>&2 printf "\\x1b[0;36m\\u25ab\\x1b[1;36m\\u25aa \\x1b[1;37m%s\\x1b[0m" "${1}"
+}
+function qvalidate() {
+	# if failure else success
+	if [[ "$1" -ne 0 ]]; then
+		>&2 printf "\\n \\x1b[31mx\\x1b[0m %s\\n\\n" "${_AA_CMD}"
+		if [[ -z ${2+x} ]]; then
+			exit 1
+		fi
+	else
+		>&2 printf "\\x1b[0m"
+	fi
 }
 function validate() {
 	# if failure else success
@@ -97,12 +108,12 @@ if [ -z ${AA_ENCRYPT+x} ]; then
 		AA_ENCRYPT=0
 	fi
 fi
-# Xorg
-if [ -z ${AA_XORG+x} ]; then
-	printf "Xorg (0-2) [default: 0]: "
-	read -r AA_XORG
-	if [ -z "$AA_XORG" ]; then
-		AA_XORG=0
+# Wayland
+if [ -z ${AA_WAYLAND+x} ]; then
+	printf "Wayland graphics (0-2) [default: 0]: "
+	read -r AA_WAYLAND
+	if [ -z "$AA_WAYLAND" ]; then
+		AA_WAYLAND=0
 	fi
 fi
 # Installation Disk
@@ -288,27 +299,27 @@ fi
 
 _AA_CMD="${AA_DISK}: Partition"
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
-		/usr/bin/sgdisk -n 1:0:256M -n 2:0:+50G -n 3:0:+50G -n 4:0:-0 -t 1:ef00 -t 2:8e00 -t 3:0700 -t 4:8e00 "${AA_DISK}" >/dev/null 2>&1
-	else
-		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 "${AA_DISK}" >/dev/null 2>&1
-	fi
+	/usr/bin/sgdisk -n 1:0:512M -n 2:0:-0 -t 1:ef00 -t 2:8e00 "${AA_DISK}" >/dev/null 2>&1
 else
 	if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
-		/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 "${AA_DISK}" >/dev/null 2>&1
+		if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ] || [ "${AA_MACHINEROLE^^}" = "DESKTOP" ]; then
+			/usr/bin/sgdisk -n 1:0:512M -n 2:0:-0 -t 1:ef00 -t 2:8e00 "${AA_DISK}" >/dev/null 2>&1
+		else
+			/usr/bin/sgdisk -n 1:0:256M -n 2:0:-0 -t 1:ef00 -t 2:8e00 "${AA_DISK}" >/dev/null 2>&1
+		fi
 	else
-		echo -e "n\np\n\n\n+256M\nn\np\n\n\n\nt\n2\n8e\na\n1\nw\n" | /usr/bin/fdisk "${AA_DISK}" >/dev/null 2>&1
+		if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ] || [ "${AA_MACHINEROLE^^}" = "DESKTOP" ]; then
+			echo -e "n\np\n\n\n+512M\nn\np\n\n\n\nt\n2\n8e\na\n1\nw\n" | /usr/bin/fdisk "${AA_DISK}" >/dev/null 2>&1
+		else
+			echo -e "n\np\n\n\n+256M\nn\np\n\n\n\nt\n2\n8e\na\n1\nw\n" | /usr/bin/fdisk "${AA_DISK}" >/dev/null 2>&1
+		fi
 	fi
 fi
 validate "$?"
 
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	_AA_CMD="${AA_DISK}: Labels"
-	if [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
-		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" -c 3:"win10" -c 4:"kali" "${AA_DISK}" >/dev/null 2>&1
-	else
-		/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" "${AA_DISK}" >/dev/null 2>&1
-	fi
+	/usr/bin/sgdisk -c 1:"uefi" -c 2:"arch" "${AA_DISK}" >/dev/null 2>&1
 	validate "$?"
 fi
 # }}}
@@ -329,22 +340,67 @@ if [ "${AA_ENCRYPT}" -eq "1" ]; then
 	validate "$?"
 
 	_AA_CMD="LUKS2: Encrypting Partition ${AA_DISK}2"
-	printf "\n\x1b[38;5;6m ≡ WARNING:\x1b[0m encryption password will be needed at every boot\n"
-	/usr/bin/cryptsetup --type luks2 -q -c aes-xts-plain64 -l 512 -h sha512 --pbkdf argon2i --pbkdf-force-iterations 4 --pbkdf-memory 1048576 --pbkdf-parallel 1 --label archlinux --subsystem "" --use-random luksFormat "${AA_DISK}2"
-	validate "$?"
+	printf "\n\x1b[38;5;6m≡ WARNING:\x1b[0m encryption password will be used as recovery fallback"
+	echo -n "${AA_PASSWD}" | /usr/bin/cryptsetup luksFormat -q \
+		--type luks2 \
+		--cipher aes-xts-plain64 \
+		--key-size 512 \
+		--hash sha512 \
+		--pbkdf argon2i \
+		--pbkdf-memory 1048576 \
+		--pbkdf-parallel 1 \
+		--label archlinux \
+		--key-file - \
+		"${AA_DISK}2"
+	qvalidate "$?"
+
+	_AA_CMD="LUKS2: Enroll Primary YubiKey (FIDO2)"
+	printf "\n\x1b[38;5;6m⚡ACTION:\x1b[0m Insert PRIMARY YubiKey and touch when prompted.\n"
+	/usr/bin/systemd-cryptenroll --fido2-device=auto \
+		--fido2-with-client-pin=yes \
+		--fido2-with-user-presence=yes \
+		--fido2-credential-algorithm=es256 \
+		"${AA_DISK}2"
+	qvalidate "$?"
+
+	_AA_CMD="LUKS2: Enroll BACKUP YubiKey (FIDO2)"
+	printf "\x1b[38;5;6m⚡ACTION:\x1b[0m REMOVE primary, INSERT BACKUP YubiKey, and press ENTER to continue."
+	read -r
+	/usr/bin/systemd-cryptenroll --fido2-device=auto \
+		--fido2-with-client-pin=yes \
+		--fido2-with-user-presence=yes \
+		--fido2-credential-algorithm=es256 \
+		"${AA_DISK}2"
+	qvalidate "$?"
+
+	_AA_CMD="LUKS2: Generate Recovery Key (optional)"
+	printf "\x1b[0mℹ  Generating a recovery key as a final backup..."
+	_RECOVERY_KEY=$(/usr/bin/systemd-cryptenroll --recovery-key "${AA_DISK}2" 2>&1 | grep -oE '[a-z-]{40,}')
+	printf '%s' "${_RECOVERY_KEY}" > "/root/${AA_HOST}-luks2.key"
+	printf "\n\x1b[38;5;33m ℹ  RECOVERY KEY:\x1b[0m %s\x1b[0m" "${_RECOVERY_KEY}"
+	printf "\n\x1b[38;5;33m ℹ  KEY SAVED TO ~/%s-luks2.key; RECORD BEFORE REBOOT!\x1b[0m" "${AA_HOST}"
+	qvalidate "$?"
+
+	#_AA_CMD="LUKS2: Enroll Recovery Passphrase"
+	#/usr/bin/systemd-cryptenroll --recovery-key "${AA_DISK}2"
+	#validate "$?"
+
+	_AA_CMD="LUKS2: Remove Passphrase Slot"
+	echo -n "${AA_PASSWD}" | /usr/bin/cryptsetup luksRemoveKey "${AA_DISK}2"
+	qvalidate "$?"
 
 	_AA_CMD="LUKS2: Decrypting Partition ${AA_DISK}2"
 	printf "\n"
-	/usr/bin/cryptsetup open --type luks2 "${AA_DISK}2" cryptlvm
-	validate "$?"
+	/usr/bin/cryptsetup open --token-type systemd-fido2 --type luks2 "${AA_DISK}2" cryptlvm
+	qvalidate "$?"
 else
 	_AA_CMD="LVM: Clear Metadata"
 	/usr/bin/pvremove -y -ff "${AA_DISK}"* >/dev/null 2>&1
 	/usr/bin/dmsetup remove_all >/dev/null 2>&1
 	validate "$?"
-fi
 
-printf "\\n"
+	printf "\\n"
+fi
 # }}}
 # Prereq: LVM {{{
 desc "Prereq: [0mLVM"
@@ -371,48 +427,68 @@ if [ "${AA_SWAP}" -ne "0" ]; then
 fi
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-root)"
-/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name root >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/lvcreate --yes -L 2560M "${AA_HOST}" --name root >/dev/null 2>&1
+else
+	/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name root >/dev/null 2>&1
+fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-usr)"
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	/usr/bin/lvcreate --yes -L 5G "${AA_HOST}" --name usr >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/lvcreate --yes -L 40G "${AA_HOST}" --name usr >/dev/null 2>&1
 else
-	/usr/bin/lvcreate --yes -L 8G "${AA_HOST}" --name usr >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 5G "${AA_HOST}" --name usr >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var)"
-/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/lvcreate --yes -L 50G "${AA_HOST}" --name var >/dev/null 2>&1
+else
+	/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var >/dev/null 2>&1
+fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_cache)"
-if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	/usr/bin/lvcreate --yes -L 1G "${AA_HOST}" --name var_cache >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/lvcreate --yes -L 8G "${AA_HOST}" --name var_cache >/dev/null 2>&1
 else
-	/usr/bin/lvcreate --yes -L 2G "${AA_HOST}" --name var_cache >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -L 1024M "${AA_HOST}" --name var_cache >/dev/null 2>&1
 fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log)"
-/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var_log >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/lvcreate --yes -L 4G "${AA_HOST}" --name var_log >/dev/null 2>&1
+else
+	/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var_log >/dev/null 2>&1
+fi
 validate "$?"
 
 _AA_CMD="LVM: Create Logical Volume (${AA_HOST}-var_log_audit)"
-/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var_log_audit >/dev/null 2>&1
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/lvcreate --yes -L 2048M "${AA_HOST}" --name var_log_audit >/dev/null 2>&1
+else
+	/usr/bin/lvcreate --yes -L 512M "${AA_HOST}" --name var_log_audit >/dev/null 2>&1
+fi
 validate "$?"
 
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-srv)"
+	/usr/bin/lvcreate --yes -L 250G "${AA_HOST}" --name srv >/dev/null 2>&1
+	validate "$?"
+
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
-	/usr/bin/lvcreate --yes -L 1G "${AA_HOST}" --name home >/dev/null 2>&1
+	/usr/bin/lvcreate --yes -l +100%FREE "${AA_HOST}" --name home >/dev/null 2>&1
+	validate "$?"
+else
+	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
+	/usr/bin/lvcreate --yes -L 1024M "${AA_HOST}" --name home >/dev/null 2>&1
 	validate "$?"
 
 	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-srv)"
 	/usr/bin/lvcreate --yes -l +100%FREE "${AA_HOST}" --name srv >/dev/null 2>&1
-	validate "$?"
-else
-	_AA_CMD="LVM: Create Logical Volume (${AA_HOST}-home)"
-	/usr/bin/lvcreate --yes -l +100%FREE "${AA_HOST}" --name home >/dev/null 2>&1
 	validate "$?"
 fi
 
@@ -448,11 +524,9 @@ _AA_CMD="Format: Ext4 (${AA_HOST}-home)"
 /usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/home" >/dev/null 2>&1
 validate "$?"
 
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_AA_CMD="Format: Ext4 (${AA_HOST}-srv)"
-	/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/srv" >/dev/null 2>&1
-	validate "$?"
-fi
+_AA_CMD="Format: Ext4 (${AA_HOST}-srv)"
+/usr/bin/mkfs.ext4 -O metadata_csum "/dev/${AA_HOST}/srv" >/dev/null 2>&1
+validate "$?"
 
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
 	_AA_CMD="Format: FAT32 (${AA_DISK}1)"
@@ -479,11 +553,7 @@ _AA_CMD="Mount: ${AA_HOST}-root => /mnt"
 validate "$?"
 
 _AA_CMD="Create Directory Structure"
-_ADD_DIR=""
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_ADD_DIR="/mnt/srv"
-fi
-/usr/bin/mkdir -p /mnt/boot /mnt/home /mnt/usr /mnt/var ${_ADD_DIR} >/dev/null 2>&1
+/usr/bin/mkdir -p /mnt/boot /mnt/home /mnt/usr /mnt/var /mnt/opt /mnt/srv >/dev/null 2>&1
 validate "$?"
 
 if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
@@ -525,11 +595,18 @@ _AA_CMD="Mount: ${AA_HOST}-var_log_audit => /mnt/var/log/audit"
 /usr/bin/mount -o defaults,noatime,nodev,noexec,nosuid,journal_checksum "/dev/${AA_HOST}/var_log_audit" /mnt/var/log/audit >/dev/null 2>&1
 validate "$?"
 
-if [ "${AA_MACHINEROLE^^}" = "SERVER" ] || [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-	_AA_CMD="Mount: ${AA_HOST}-srv => /mnt/srv"
+_AA_CMD="Mount: ${AA_HOST}-srv => /mnt/srv"
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/mount -o defaults,noatime,nodev,journal_checksum "/dev/${AA_HOST}/srv" /mnt/srv >/dev/null 2>&1
+else
 	/usr/bin/mount -o defaults,noatime,nodev,nosuid,journal_checksum "/dev/${AA_HOST}/srv" /mnt/srv >/dev/null 2>&1
-	validate "$?"
 fi
+validate "$?"
+
+_AA_CMD="Mount: /srv/opt => /opt (bind)"
+/usr/bin/mkdir -p /mnt/srv/opt
+/usr/bin/mount --bind /mnt/srv/opt /mnt/opt >/dev/null 2>&1
+validate "$?"
 
 printf "\\n"
 # }}}
@@ -566,26 +643,29 @@ _PACSTRAP+=(bc dateutils htop iotop inetutils)
 _PACSTRAP+=(p7zip unrar)
 #_PACSTRAP=(arch-audit base base-devel bc bind-tools cronie dateutils fish gptfdisk git htop iotop lsof nfs-utils nftables openssh p7zip pacman-contrib pyalpm refind-efi reflector sudo tmux unrar unzip vim zip)
 if [ "${AA_UCODE^^}" = "INTEL" ]; then
-	_PACSTRAP+=(intel-ucode)
+	_PACSTRAP+=(intel-ucode cpupower)
 elif [ "${AA_UCODE^^}" = "AMD" ]; then
 	_PACSTRAP+=(amd-ucode)
+fi
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	_PACSTRAP+=(libfprint pam-u2f pcsc-tools)
 fi
 if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_PACSTRAP+=(qemu-guest-agent)
 else
 	_PACSTRAP+=(lm_sensors)
 fi
-if [ "${AA_XORG}" -ne "0" ]; then
-	_PACSTRAP+=(alsa-utils pulseaudio-alsa xorg-server xorg-xinit xorg-apps)
+if [ "${AA_WAYLAND}" -ne "0" ]; then
+	_PACSTRAP+=(networkmanager pipewire pipewire-audio plasma-meta kio-admin kio-extras kio-fuse samba xdg-desktop-portal xdg-desktop-portal-gtk xdg-user-dirs upower wireplumber wireless_tools)
 	if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
-		if [ "${AA_XORG}" -eq "1" ]; then
+		if [ "${AA_WAYLAND}" -eq "1" ]; then
 			_PACSTRAP+=(spice-vdagent xf86-video-qxl)
 		fi
 	else
-		if [ "${AA_XORG}" -eq "1" ]; then
-			_PACSTRAP+=(libva-intel-driver libvdpau-va-gl mesa-vdpau vdpauinfo vulkan-intel)
-		elif [ "${AA_XORG}" -eq "2" ]; then
-			_PACSTRAP+=(mesa-vdpau nvidia-dkms nvidia-settings vdpauinfo)
+		if [ "${AA_WAYLAND}" -eq "1" ]; then
+			_PACSTRAP+=(intel-media-driver mesa vulkan-intel)
+		elif [ "${AA_WAYLAND}" -eq "2" ]; then
+			_PACSTRAP+=(mesa nvidia-dkms nvidia-settings)
 		fi
 	fi
 fi
@@ -632,7 +712,11 @@ echo -e "# /dev: device nodes\ndevtmpfs\t/dev\tdevtmpfs\tdefaults,noexec,nosuid\
 validate "$?"
 
 _AA_CMD="Fstab: Secure /tmp"
-echo -e "# /tmp: temporary files\ntmpfs\t/tmp\t\ttmpfs\tdefaults,noatime,nodev,noexec,nosuid,size=8192M,mode=1777\t0 0\n" >> /mnt/etc/fstab
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	echo -e "# /tmp: temporary files\ntmpfs\t/tmp\t\ttmpfs\tdefaults,noatime,nodev,nosuid,size=4096M,mode=1777\t0 0\n" >> /mnt/etc/fstab
+else
+	echo -e "# /tmp: temporary files\ntmpfs\t/tmp\t\ttmpfs\tdefaults,noatime,nodev,noexec,nosuid,size=4096M,mode=1777\t0 0\n" >> /mnt/etc/fstab
+fi
 validate "$?"
 
 _AA_CMD="Fstab: Secure /var/tmp"
@@ -644,7 +728,7 @@ echo -e "# /var/cache/makepkg: temporary build dir\ntmpfs\t/var/cache/makepkg\t\
 validate "$?"
 
 _AA_CMD="Fstab: Secure /proc"
-if [ "${AA_XORG}" -ne "0" ]; then
+if [ "${AA_WAYLAND}" -ne "0" ]; then
 	echo -e "# /proc: kernel and process information\nproc\t/proc\t\tproc\tnodev,noexec,nosuid,gid=wheel\t0 0" >> /mnt/etc/fstab
 else
 	echo -e "# /proc: kernel and process information\nproc\t/proc\t\tproc\tnodev,noexec,nosuid,hidepid=2,gid=wheel\t0 0" >> /mnt/etc/fstab
@@ -749,15 +833,15 @@ EOF
 		_OPTIONS="${_OPTIONS} apparmor=1 security=apparmor lsm=landlock,lockdown,yama,integrity,apparmor,bpf audit=1"
 	fi
 	if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
-		if [ "${AA_XORG}" -eq "1" ]; then
+		if [ "${AA_WAYLAND}" -eq "1" ]; then
 			_OPTIONS="${_OPTIONS} i915.enable_fbc=1 i915.enable_guc=2 i915.fastboot=1"
-		elif [ "${AA_XORG}" -eq "2" ]; then
+		elif [ "${AA_WAYLAND}" -eq "2" ]; then
 			_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1"
 		fi
 	fi
 	if [ "${AA_ENCRYPT}" -eq "1" ]; then
 		_UUID_LUKS=$(blkid -s UUID -o value "${AA_DISK}2")
-		_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=discard root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
+		_ROOT="rd.luks.name=${_UUID_LUKS}=cryptlvm rd.luks.options=token-type=systemd-fido2 root=/dev/${AA_HOST}/root resume=/dev/${AA_HOST}/swap"
 	fi
 	if [ "${AA_UCODE^^}" = "AMD" ]; then
 		_OPTIONS="initrd	/amd-ucode.img\ninitrd	/initramfs-linux-hardened.img\noptions	${_ROOT} ${_OPTIONS}"
@@ -802,9 +886,9 @@ EOL
 		_OPTIONS="${_OPTIONS} initrd=/intel-ucode.img"
 	fi
 	if [ ! "${AA_MACHINEROLE^^}" = "VM" ]; then
-		if [ "${AA_XORG}" -eq "1" ]; then
+		if [ "${AA_WAYLAND}" -eq "1" ]; then
 			_OPTIONS="${_OPTIONS} i915.enable_fbc=1 i915.enable_guc=2 i915.fastboot=1"
-		elif [ "${AA_XORG}" -eq "2" ]; then
+		elif [ "${AA_WAYLAND}" -eq "2" ]; then
 			_OPTIONS="${_OPTIONS} nvidia-drm.modeset=1 nvidia.NVreg_UsePageAttributeTable=1"
 		fi
 	fi
@@ -831,13 +915,13 @@ printf "\\n"
 # Config: Kernel {{{
 desc "Config: [0mKernel"
 _AA_CMD="Modify: /etc/mkinitcpio.conf"
-_MODULES="crc32_generic crc32c-intel fuse lz4 lz4_compress"
+_MODULES="crc32c fuse lz4 lz4_compress"
 if [ "${AA_MACHINEROLE^^}" = "VM" ]; then
 	_MODULES="${_MODULES} virtio virtio_blk virtio_pci virtio_net"
 else
-	if [ "${AA_XORG}" -eq "1" ]; then
+	if [ "${AA_WAYLAND}" -eq "1" ]; then
 		_MODULES="${_MODULES} i915"
-	elif [ "${AA_XORG}" -eq "2" ]; then
+	elif [ "${AA_WAYLAND}" -eq "2" ]; then
 		_MODULES="${_MODULES} nvidia nvidia_modeset nvidia_uvm nvidia_drm"
 	fi
 fi
@@ -846,10 +930,10 @@ if [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 fi
 _STRING=("-i" "-e" "s/^MODULES=()/MODULES=(${_MODULES})/")
 if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	_STRING+=("-e" "s/base udev autodetect modconf kms keyboard keymap consolefont block filesystems/systemd keyboard sd-vconsole autodetect modconf kms keymap block sd-encrypt lvm2 filesystems/")
+	_STRING+=("-e" "s/base systemd autodetect microcode modconf kms keyboard sd-vconsole block filesystems/systemd keyboard sd-vconsole autodetect microcode modconf kms keymap block sd-encrypt lvm2 filesystems/")
 else
 	#if [ "${AA_MACHINETYPE^^}" = "UEFI" ]; then
-		_STRING+=("-e" "s/base udev autodetect modconf kms keyboard keymap consolefont block filesystems/systemd keyboard sd-vconsole autodetect modconf kms keymap block lvm2 filesystems/")
+		_STRING+=("-e" "s/base systemd autodetect microcode modconf kms keyboard sd-vconsole block filesystems/systemd keyboard sd-vconsole autodetect microcode modconf kms keymap block lvm2 filesystems/")
 	#else
 		#_STRING+=("-e" "s/base udev autodetect modconf kms block filesystems keyboard/base udev keyboard consolefont autodetect modconf kms block lvm2 filesystems/")
 	#fi
@@ -868,7 +952,7 @@ _AA_CMD="Generate: Initial Ramdisk Environment"
 /usr/bin/arch-chroot /mnt mkinitcpio -P >/dev/null 2>&1
 validate "$?"
 
-if [ "${AA_XORG}" -eq "2" ]; then
+if [ "${AA_WAYLAND}" -eq "2" ]; then
 	_AA_CMD="Create: NVIDIA Pacman Hook"
 	/usr/bin/mkdir -p /mnt/etc/pacman.d/hooks/
 	/usr/bin/cat > /mnt/etc/pacman.d/hooks/nvidia.conf << EOF
@@ -918,6 +1002,11 @@ net.ipv4.conf.default.accept_source_route=0
 net.ipv4.conf.all.accept_redirects=0
 net.ipv6.conf.all.accept_redirects=0
 net.ipv6.conf.default.accept_redirects=0
+EOF
+fi
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	/usr/bin/cat >> /mnt/etc/sysctl.d/50-security.conf <<EOF
+kernel.unprivileged_userns_clone=1
 EOF
 fi
 validate "$?"
@@ -1017,19 +1106,6 @@ _AA_CMD="Modify: Oldschool NIC Names"
 /usr/bin/ln -sf /dev/null /mnt/etc/udev/rules.d/80-net-setup-link.rules
 validate "$?"
 
-if [ "${AA_ENCRYPT}" -eq "1" ]; then
-	if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
-		_AA_CMD="Set: Auto-login ${AA_USERNAME}"
-		/usr/bin/mkdir -p /mnt/etc/systemd/system/getty@tty1.service.d/
-		/usr/bin/cat > /mnt/etc/systemd/system/getty@tty1.service.d/override.conf << EOF
-[Service]
-ExecStart=
-ExecStart=-/usr/bin/agetty --autologin ${AA_USERNAME} --noclear %I \$TERM
-EOF
-		validate "$?"
-	fi
-fi
-
 _AA_CMD="Modify: Default umask (022 => 027)"
 /usr/bin/sed -i 's/umask 022/umask 027/' /mnt/etc/profile
 /usr/bin/sed -i 's/# If not running/umask 027\n\n# If not running/' /mnt/etc/bash.bashrc
@@ -1070,11 +1146,11 @@ validate "$?"
 _AA_CMD="Permissions: Compilers"
 /usr/bin/arch-chroot /mnt pacman -Ql gcc | grep '/usr/bin/.\+' | awk '{ print $2 }' | {
 	while IFS= read -r file; do
-		chmod o-rwx "/mnt${file}"
-		chown root:wheel "/mnt${file}"
+		chmod -h o-rwx "/mnt${file}"
+		chown -h root:wheel "/mnt${file}"
 	done
-	chmod o-rwx "/mnt/usr/sbin/as"
-	chown root:wheel "/mnt/usr/sbin/as"
+	chmod -h o-rwx "/mnt/usr/sbin/as"
+	chown -h root:wheel "/mnt/usr/sbin/as"
 }
 validate "$?"
 
@@ -1088,58 +1164,95 @@ validate "$?"
 
 printf "\\n"
 # }}}
+# FIDO2 for Sudo / Login (YubiKey) {{{
+if [ "${AA_MACHINEROLE^^}" = "DESKTOP" ] || [ "${AA_MACHINEROLE^^}" = "LAPTOP" ]; then
+	desc "Config: [0mFIDO2 for Login/Sudo"
+
+	_AA_CMD="Create: system-wide U2F mappings file"
+	/usr/bin/arch-chroot /mnt touch /etc/u2f_mappings
+	/usr/bin/arch-chroot /mnt chmod 600 /etc/u2f_mappings
+	/usr/bin/arch-chroot /mnt chown root:root /etc/u2f_mappings
+	validate "$?"
+
+	_AA_CMD="Register YubiKey system-wide for user ${AA_USERNAME}"
+	printf "\n\x1b[38;5;6m⚡ ACTION:\x1b[0m Insert PRIMARY YubiKey and touch when prompted.\n"
+	/usr/bin/arch-chroot /mnt /bin/bash -c "pamu2fcfg -u ${AA_USERNAME} >> /etc/u2f_mappings"
+	qvalidate "$?"
+
+	# Optional: Register a second YubiKey (backup) if you have one
+	_AA_CMD="Register: YubiKey (backup) system-wide for user ${AA_USERNAME}"
+	printf "\x1b[38;5;6m⚡ ACTION:\x1b[0m REMOVE primary, INSERT BACKUP YubiKey, and press ENTER to continue."
+	read -r
+	/usr/bin/arch-chroot /mnt /bin/bash -c "pamu2fcfg -n -u ${AA_USERNAME} >> /etc/u2f_mappings"
+	qvalidate "$?"
+
+	_AA_CMD="Configure PAM for system login (2FA)"
+	LINE=$(printf "auth\t\tsufficient\t\tpam_u2f.so authfile=/etc/u2f_mappings cue")
+	#/usr/bin/sed -i '/^auth\s*include\s*system-auth/a auth       required   pam_u2f.so authfile=/etc/u2f_mappings cue' /mnt/etc/pam.d/system-login
+	/usr/bin/sed -i "/^auth\s*requisite\s*pam_nologin.so/a ${LINE}" /mnt/etc/pam.d/system-login
+	qvalidate "$?"
+
+	_AA_CMD="Configure PAM for sudo (2FA)"
+	LINE=$(printf "auth\t\trequired\t\tpam_u2f.so authfile=/etc/u2f_mappings cue")
+	#/usr/bin/sed -i '/^#%PAM-1.0/a auth            required\t\tpam_u2f.so authfile=/etc/u2f_mappings cue' /mnt/etc/pam.d/sudo
+	/usr/bin/sed -i "/^#%PAM-1.0/a ${LINE}" /mnt/etc/pam.d/sudo
+	qvalidate "$?"
+fi
+# }}}
 # Config: Networking {{{
 desc "Config: [0mNetworking"
-_AA_CMD="Config: eth0.network"
-_NIC="[Match]\nName=eth0\n\n[Network]\n"
-if [ -n "${AA_IPADDR}" ]; then
-	_DNS=""
-	if [ -z "${AA_DNS}" ] || [ "${AA_DNS^^}" = "CLOUDFLARE" ]; then
-		_DNS="DNS=1.1.1.1\nDNS=1.0.0.1\n"
-	elif [ "${AA_DNS^^}" = "OPENDNS" ]; then
-		_DNS="DNS=208.67.222.222\nDNS=208.67.220.220\n"
-	elif [ "${AA_DNS^^}" = "GOOGLE" ]; then
-		_DNS="DNS=8.8.8.8\nDNS=8.8.4.4\n"
-	elif [ "${AA_DNS^^}" = "NEUSTAR" ]; then
-		_DNS="DNS=156.154.70.5\nDNS=156.154.71.5\n"
+if [ "${AA_WAYLAND}" -eq "0" ]; then
+	_AA_CMD="Config: eth0.network"
+	_NIC="[Match]\nName=eth0\n\n[Network]\n"
+	if [ -n "${AA_IPADDR}" ]; then
+		_DNS=""
+		if [ -z "${AA_DNS}" ] || [ "${AA_DNS^^}" = "CLOUDFLARE" ]; then
+			_DNS="DNS=1.1.1.1\nDNS=1.0.0.1\n"
+		elif [ "${AA_DNS^^}" = "OPENDNS" ]; then
+			_DNS="DNS=208.67.222.222\nDNS=208.67.220.220\n"
+		elif [ "${AA_DNS^^}" = "GOOGLE" ]; then
+			_DNS="DNS=8.8.8.8\nDNS=8.8.4.4\n"
+		elif [ "${AA_DNS^^}" = "NEUSTAR" ]; then
+			_DNS="DNS=156.154.70.5\nDNS=156.154.71.5\n"
+		else
+			_DNS="DNS=${AA_DNS}\n"
+		fi
+		_DNS="${_DNS}DNSOverTLS=opportunistic\n"
+		if [ "${#AA_DOMAINS[*]}" -gt 0 ]; then
+			for i in "${AA_DOMAINS[@]}"; do
+				_DNS="${_DNS}Domains=${i}\n"
+			done
+		fi
+		_NIC="${_NIC}DHCP=no\n${_DNS}IPv6AcceptRA=false\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
 	else
-		_DNS="DNS=${AA_DNS}\n"
+		_NIC="${_NIC}DHCP=ipv4\nIPv6AcceptRA=false\nNTP=pool.ntp.org\n\n[DHCP]\nUseDNS=true\nUseDomains=true\n\n[Address]\nLabel=archlinux"
 	fi
-	_DNS="${_DNS}DNSOverTLS=opportunistic\n"
-	if [ "${#AA_DOMAINS[*]}" -gt 0 ]; then
-		for i in "${AA_DOMAINS[@]}"; do
-			_DNS="${_DNS}Domains=${i}\n"
-		done
+	echo -e "${_NIC}" > /mnt/etc/systemd/network/eth0.network
+	validate "$?"
+
+	_AA_CMD="Config: eth.link"
+	_MACADDR=$(/usr/bin/cat /sys/class/net/eth0/address)
+	echo -e "[Match]\nMACAddress=${_MACADDR}\n\n[Link]\nName=eth0" > /mnt/etc/systemd/network/eth0.link
+	validate "$?"
+
+	if [ -n "${AA_WIFI_SSID}" ]; then
+		_AA_CMD="Create: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
+		/usr/bin/arch-chroot /mnt /usr/bin/wpa_passphrase "${AA_WIFI_SSID}" "${AA_WIFI_PASSWD}" > /mnt/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+		validate "$?"
+
+		_AA_CMD="Config: wlan0.network"
+		echo -e "[Match]\nName=wlan0\n\n[Network]\nDHCP=ipv4\nNTP=pool.ntp.org\n[DHCP]\nUseDNS=true\nUseDomains=true\n[Address]\nLabel=archlinux" > /mnt/etc/systemd/network/wlan0.network
+		validate "$?"
+
+		_AA_CMD="Config: wlan0.link"
+		_MACADDR=$(/usr/bin/cat /sys/class/net/wlan0/address)
+		echo -e "[Match]\nMACAddress=${_MACADDR}\n\n[Link]\nName=wlan0" > /mnt/etc/systemd/network/wlan0.link
+		validate "$?"
+
+		_AA_CMD="Systemd: Enable (wpa_supplicant@wlan0.service)"
+		/usr/bin/arch-chroot /mnt systemctl enable wpa_supplicant@wlan0.service >/dev/null 2>&1
+		validate "$?"
 	fi
-	_NIC="${_NIC}DHCP=no\n${_DNS}IPv6AcceptRA=false\nNTP=pool.ntp.org\n[Address]\nAddress=${AA_IPADDR}/24\nLabel=archlinux\n\n[Route]\nGateway=${AA_GATEWAY}"
-else
-	_NIC="${_NIC}DHCP=ipv4\nIPv6AcceptRA=false\nNTP=pool.ntp.org\n\n[DHCP]\nUseDNS=true\nUseDomains=true\n\n[Address]\nLabel=archlinux"
-fi
-echo -e "${_NIC}" > /mnt/etc/systemd/network/eth0.network
-validate "$?"
-
-_AA_CMD="Config: eth.link"
-_MACADDR=$(/usr/bin/cat /sys/class/net/eth0/address)
-echo -e "[Match]\nMACAddress=${_MACADDR}\n\n[Link]\nName=eth0" > /mnt/etc/systemd/network/eth0.link
-validate "$?"
-
-if [ -n "${AA_WIFI_SSID}" ]; then
-	_AA_CMD="Create: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
-	/usr/bin/arch-chroot /mnt /usr/bin/wpa_passphrase "${AA_WIFI_SSID}" "${AA_WIFI_PASSWD}" > /mnt/etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-	validate "$?"
-
-	_AA_CMD="Config: wlan0.network"
-	echo -e "[Match]\nName=wlan0\n\n[Network]\nDHCP=ipv4\nNTP=pool.ntp.org\n[DHCP]\nUseDNS=true\nUseDomains=true\n[Address]\nLabel=archlinux" > /mnt/etc/systemd/network/wlan0.network
-	validate "$?"
-
-	_AA_CMD="Config: wlan0.link"
-	_MACADDR=$(/usr/bin/cat /sys/class/net/wlan0/address)
-	echo -e "[Match]\nMACAddress=${_MACADDR}\n\n[Link]\nName=wlan0" > /mnt/etc/systemd/network/wlan0.link
-	validate "$?"
-
-	_AA_CMD="Systemd: Enable (wpa_supplicant@wlan0.service)"
-	/usr/bin/arch-chroot /mnt systemctl enable wpa_supplicant@wlan0.service >/dev/null 2>&1
-	validate "$?"
 fi
 
 _AA_CMD="Modify: /etc/hostname"
@@ -1170,9 +1283,11 @@ fi
 echo -e "\n# vim: ft=conf sts=4 sw=4 ts=4 noet:" >> /mnt/etc/hosts
 validate "$?"
 
-_AA_CMD="Systemd: Enable (systemd-networkd.service)"
-/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd.service >/dev/null 2>&1
-validate "$?"
+if [ "${AA_WAYLAND}" -eq "0" ]; then
+	_AA_CMD="Systemd: Enable (systemd-networkd.service)"
+	/usr/bin/arch-chroot /mnt systemctl enable systemd-networkd.service >/dev/null 2>&1
+	validate "$?"
+fi
 
 _AA_CMD="Systemd: Enable (systemd-resolved.service)"
 /usr/bin/arch-chroot /mnt systemctl enable systemd-resolved.service >/dev/null 2>&1
@@ -1205,14 +1320,18 @@ printf "\\n"
 # Config: Package Defaults {{{
 desc "Config: [0mPackage Defaults"
 _AA_CMD="Modify: /etc/pacman.conf"
-/usr/bin/sed -i -e 's/#Color/Color/' -e 's/#CacheDir    = \/var\/cache\/pacman\/pkg\//CacheDir = \/var\/cache\/makepkg\//' /mnt/etc/pacman.conf >/dev/null 2>&1
+#/usr/bin/sed -i -e 's/#Color/Color/' -e 's/#CacheDir    = \/var\/cache\/pacman\/pkg\//CacheDir = \/var\/cache\/makepkg\//' /mnt/etc/pacman.conf >/dev/null 2>&1
+/usr/bin/sed -i -e 's/#Color/Color/' /mnt/etc/pacman.conf >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Modify: /etc/makepkg.conf"
-/usr/bin/mkdir -p /mnt/var/cache/makepkg
-/usr/bin/chmod 0750 /mnt/var/cache/makepkg
-/usr/bin/sed -i 's/BUILDDIR=\/tmp\/makepkg/BUILDDIR=\/var\/cache\/makepkg/' /mnt/etc/makepkg.conf
-validate "$?"
+#_AA_CMD="Modify: /etc/makepkg.conf"
+#/usr/bin/mkdir -p /mnt/var/cache/makepkg
+#/usr/bin/chmod 0750 /mnt/var/cache/makepkg
+#/usr/bin/chown root:wheel /mnt/var/cache/makepkg
+#/usr/bin/sed -i 's/BUILDDIR=\/tmp\/makepkg/BUILDDIR=\/var\/cache\/makepkg/' /mnt/etc/makepkg.conf
+#/usr/bin/rm -rf /mnt/var/cache/pacman
+#/usr/bin/arch-chroot /mnt ln -s /var/cache/makepkg /var/cache/pacman
+#validate "$?"
 
 _AA_CMD="Modify: /etc/pacman.d/mirrorlist"
 /usr/bin/arch-chroot /mnt reflector --latest 100 --protocol https --sort rate --save /etc/pacman.d/mirrorlist >/dev/null 2>&1
@@ -1654,9 +1773,9 @@ _AA_CMD="Systemd: Enable (sshd.service)"
 /usr/bin/arch-chroot /mnt systemctl enable sshd.service >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Create: /etc/ssh/sshd_config"
-/usr/bin/cat > /mnt/etc/ssh/sshd_config << EOF
-# \$KYAULabs: sshd_config,v 1.0.1 2021/05/27 12:33:51 kyau Exp \$
+_AA_CMD="Create: /etc/ssh/sshd_config.d/99-kyaulabs.conf"
+/usr/bin/cat > /mnt/etc/ssh/sshd_config.d/99-kyaulabs.conf << EOF
+# \$KYAULabs: 99-kyaulabs.conf,v 1.0.2 2021/05/27 12:33:51 kyau Exp \$
 
 # https://cipherlist.dev/
 Port 4222
@@ -1691,7 +1810,7 @@ EOF
 validate "$?"
 
 _AA_CMD="Secure: sshd_config"
-/usr/bin/chmod 0600 /mnt/etc/ssh/sshd_config
+/usr/bin/chmod 0600 /mnt/etc/ssh/sshd_config.d/99-kyaulabs.conf
 validate "$?"
 
 _AA_CMD="Create: ~/.ssh/"
@@ -1702,9 +1821,9 @@ _AA_CMD="Download: ~/.ssh/authorized_keys"
 /usr/bin/wget "${AA_SSH_KEY}" -O "/mnt/home/${AA_USERNAME}/.ssh/authorized_keys" >/dev/null 2>&1
 validate "$?"
 
-_AA_CMD="Create: /etc/ssh/ssh_config"
-/usr/bin/cat > /mnt/etc/ssh/ssh_config << EOF
-# \$KYAULabs: ssh_config,v 1.0.1 2021/05/27 12:33:19 kyau Exp \$
+_AA_CMD="Create: /etc/ssh/ssh_config.d/99-kyaulabs.conf"
+/usr/bin/cat > /mnt/etc/ssh/ssh_config.d/99-kyaulabs.conf << EOF
+# \$KYAULabs: 99-kyaulabs.conf,v 1.0.2 2021/05/27 12:33:19 kyau Exp \$
 
 # https://cipherlist.dev/
 Host *
@@ -1878,12 +1997,28 @@ validate "$?"
 _AA_CMD="Create: /root/firstboot"
 /usr/bin/cat > /mnt/root/firstboot << EOF
 #!/usr/bin/env bash
+set -euo pipefail
+
 echo "-- AARCH: START --"
+EOF
+if [ "${AA_WAYLAND}" -eq "0" ]; then
+	echo "systemctl set-default multi-user.target" >> /mnt/root/firstboot
+else
+	/usr/bin/cat >> /mnt/root/firstboot << EOF
+systemctl enable --now NetworkManager
+systemctl set-default graphical.target
+systemctl enable plasma-login.service
+EOF
+	if [ -n "${AA_WIFI_SSID}" ]; then
+		echo "nmcli device wifi connect \"${AA_WIFI_SSID}\" password '${AA_WIFI_PASSWD}'" >> /mnt/root/firstboot
+		echo "nmcli connection modify \"${AA_WIFI_SSID}\" connection.autoconnect yes" >> /mnt/root/firstboot
+	fi
+fi
+/usr/bin/cat >> /mnt/root/firstboot << EOF
 mandb
 timedatectl set-ntp true
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 localectl set-locale LANG=en_US.UTF-8
-usbguard generate-policy > /etc/usbguard/rules.conf
 echo "-- AARCH: BOOTLOADER --"
 echo -e "${AA_USERNAME} ALL=(ALL) NOPASSWD: ALL\n" > /etc/sudoers.d/temporary
 EOF
@@ -1896,13 +2031,10 @@ curl -L https://github.com/tianocore/edk2/releases/download/edk2-stable202002/Sh
 echo -e "title\tUEFI Shell x86_64 v2\nefi\t/EFI/tools/shellx64.efi" | tee /boot/loader/entries/uefi-shell.conf
 EOF
 fi
-if [ "${AA_XORG}" -eq "0" ]; then
-	echo "systemctl set-default multi-user.target" >> /mnt/root/firstboot
-else
-	echo "systemctl set-default graphical.target" >> /mnt/root/firstboot
-fi
+
 if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; then
 	/usr/bin/cat >> /mnt/root/firstboot <<EOF
+usbguard generate-policy > /etc/usbguard/rules.conf
 runuser -l "${AA_USERNAME}" -c "mkdir -m700 -p ~/.gnupg/ && echo 'standard-resolver' > ~/.gnupg/dirmngr.conf"
 sleep 5
 # gpg key for acct maintainer
@@ -1930,21 +2062,21 @@ runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -Rs memtest86-efi --noconfirm > /de
 echo -e "title\tMemtest86\nefi\t/EFI/tools/memtest86.efi" | tee /boot/loader/entries/memtest86.conf
 EOF
 fi
-if [ -f /root/firstboot.txt ]; then
-	# export all variables used in firstboot.txt
+if [ -f /root/firstboot.sh ]; then
+	# export all variables used in firstboot.sh
 	export AA_MACHINEROLE
 	export AA_USERNAME
 	export AA_PKGMAN
-	export AA_XORG
-	# import firstboot.txt and substitute needed variables
+	export AA_WAYLAND
+	# import firstboot.sh and substitute needed variables
 	# shellcheck disable=SC2016
-	envsubst '${AA_MACHINEROLE} ${AA_USERNAME} ${AA_PKGMAN} ${AA_XORG}' < /root/firstboot.txt > /root/__aa__firstboot.txt
-	mapfile -t lines <"/root/__aa__firstboot.txt"
+	envsubst '${AA_MACHINEROLE} ${AA_USERNAME} ${AA_PKGMAN} ${AA_WAYLAND}' < /root/firstboot.sh > /root/__aa__firstboot.sh
+	mapfile -t lines <"/root/__aa__firstboot.sh"
 	for line in "${lines[@]}"; do
 		if [ "${line:0:1}" = "#" ] || [ -z "${line}" ]; then continue; fi
 		echo "${line}" >> /mnt/root/firstboot
 	done
-	rm -f /root/__aa__firstboot.txt
+	rm -f /root/__aa__firstboot.sh
 fi
 if [ -n "${AA_TFAN_CONFIG}" ]; then
 	echo "pacman -Rs boost cmake" >> /mnt/root/firstboot
@@ -1953,11 +2085,11 @@ if [ "${AA_MACHINEROLE^^}" = "VM" ] || [ "${AA_MACHINEROLE^^}" = "SERVER" ]; the
 	/usr/bin/cat >> /mnt/root/firstboot << EOF
 runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -Rs linux --noconfirm"
 echo -e "skip-upgrade-test=yes\nskip-test=KRNL-5830\nskip-test=ACCT-9626\nskip-test=AUTH-9230\nskip-test=AUTH-9408\nskip-test=NETW-2705\nskip-test=FIRE-4512\nskip-test=BANN-7126\nskip-test=BANN-7130\nskip-test=KRNL-6000:kernel.modules_disabled" >> /etc/lynis/custom.prf
+sed -i -e 's/After=systemd-network-wait-online.service/After=network.target network-online.target/' -e 's/Wants=systemd-network-wait-online.service/Wants=network-online.target/' -e 's/addrwatch -q/addrwatch -P -q/' /usr/lib/systemd/system/addrwatch@.service
 EOF
 fi
 /usr/bin/cat >> /mnt/root/firstboot << EOF
 
-sed -i -e 's/After=systemd-network-wait-online.service/After=network.target network-online.target/' -e 's/Wants=systemd-network-wait-online.service/Wants=network-online.target/' -e 's/addrwatch -q/addrwatch -P -q/' /usr/lib/systemd/system/addrwatch@.service
 aide --init
 mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 rm -f /etc/sudoers.d/temporary

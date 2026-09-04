@@ -1,4 +1,7 @@
 templates/
 moduli
 *.sh
+!aarch.sh
+!erase_hdd.sh
+!firstboot.sh
 *-thinkpad
