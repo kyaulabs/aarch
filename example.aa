@@ -1,7 +1,7 @@
 #!/bin/bash
 # shellcheck disable=SC2034
 
-# $KYAULabs: example.aa,v 2.2.5 2022/08/05 16:11:54 kyau Exp $
+# $KYAULabs: example.aa,v 2.2.6 2026/08/05 13:16:36 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -11,7 +11,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2023 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2026 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -33,8 +33,8 @@ AA_MACHINEROLE="vm"				# Machine Role [desktop/laptop/server/vm]
 AA_MACHINETYPE="uefi"			# Machine Type [mbr/uefi]
 AA_ENCRYPT=0					# Full Disk Encrypt [0=False/1=True]
 AA_UCODE="intel"				# CPU microcode [amd/intel]
-AA_XORG=0						# Xorg	[0=False/1=QXL]				(vm)
-								#		[0=False/1=Intel/2=NVIDIA]	(*)
+AA_WAYLAND=0					# Wayland	[0=False/1=QXL]				(vm)
+								#			[0=False/1=Intel/2=NVIDIA]	(*)
 AA_DISK="/dev/sda"				# Disk Device Node for Installation Target
 AA_HOSTNAME="arch.local"		# System Hostname
 AA_TZ="America/Los_Angeles"		# System Timezone

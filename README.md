@@ -1,17 +1,15 @@
-![ANSI Logo](https://gitlab.com/kyaulabs/aarch/raw/master/aarch.ans.png "ANSI Logo")  
-<a href="https://kyaulabs.com/">https://kyaulabs.com/</a>
+![ANSI Logo](https://gitlab.com/kyaulabs/aarch/raw/master/aarch.ans.png "ANSI Logo")
 
-[![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg)](CODE_OF_CONDUCT.md) &nbsp; [![Semantic Versioning](https://img.shields.io/badge/semantic%20versioning-2.6.6-333333.svg)](https://semver.org) &nbsp; [![GitHub](https://img.shields.io/github/license/kyaulabs/aarch)](LICENSE) &nbsp; [![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue)](https://github.com/zricethezav/gitleaks) &nbsp; [![CI](https://img.shields.io/github/actions/workflow/status/kyaulabs/aarch/shellcheck.yml)](../../actions)  
+[![Contributor Covenant](https://img.shields.io/badge/contributor%20covenant-2.1-4baaaa.svg?logo=open-source-initiative&logoColor=4baaaa)](CODE_OF_CONDUCT.md)
+[![Conventional Commits](https://img.shields.io/badge/conventional%20commits-1.0.0-fe5196?style=flat&logo=conventionalcommits)](https://conventionalcommits.org)
+[![GitHub](https://img.shields.io/github/license/kyaulabs/template?logo=creativecommons)](LICENSE)
+[![Semantic Versioning](https://img.shields.io/badge/release-2.6.7-red?logo=semver)](https://semver.org)
+[![CI](https://img.shields.io/github/actions/workflow/status/kyaulabs/aarch/shellcheck.yml)](../../actions)
+[![Gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-blue?logo=git&logoColor=seagreen&color=seagreen)](https://github.com/zricethezav/gitleaks)
 
-## Disclaimer
+## About
 
-I personally use Arch Linux everywhere and with the frequency at which I was doing reinstallations increasing, eventually I needed a better solution. What started as a hardening script that was run post-installation has merged into the fully automated installation script that you see before you.
-
-```
-🚧 WARNING
-This repository is provided for archival/educational purposes, I am not responsible for any data loss or
-damage that may ensue.
-```
+I personally use Arch Linux everywhere and eventually wanted the ability to spin up new instances at will. What started as a hardening script that was run post-installation has merged into the fully automated installation script that you see before you.
 
 * [Introduction](#introduction)
 * [Configuration](#configuration)
@@ -21,6 +19,7 @@ damage that may ensue.
 * [Attribution](#attribution)
 
 ## Introduction
+
 AArch or Automated Arch Linux is a template-based automated installer for Arch
 Linux. This script is the convergence of my
 [Arch Linux Installation](https://kyau.net/wiki/ArchLinux:Installation) along
@@ -30,7 +29,7 @@ on my personal wiki.
 
 ## Configuration
 
-Before you can start `aarch`, a `moduli` must be generated. This will take a
+Before you can start `aarch.sh`, a `moduli` must be generated. This will take a
 considerable amount of time depending on your CPU, if this is being executed
 inside of a virtualized environment it is recommended that you use `haveged`.
 
@@ -44,11 +43,9 @@ After the `moduli` has been generated the `example.aa` file can be edited for
 a fully automated installation. This file can be named anything you like as long
 as it retains it's extension (eg. machine.aa). Without a template file you will
 instead be asked to input all of the information to the console when running
-`aarch`.
+`aarch.sh`.
 
 Boot up the machine and/or vm with an ARCHISO image.
-
-
 
 ### Custom ARCHISO
 
@@ -58,21 +55,22 @@ build your own ARCHISO it will help to follow these guidelines:
 
 * Use `releng` as your base template.
 * Add the `git` and `wget` packages to the `packages.x86_64` file so that it
-will be installed an usable in the installation environment.
+will be installed and usable in the installation environment.
 * Revert to traditional interface names with `ln -s /dev/null airootfs/etc/udev/rules.d/80-net-setup-link.rules`
-* `aarch`, `erase_hdd`, `firstboot.txt` and `moduli` must be placed into in the `airootfs/root`
-directory prior to building.
+* `aarch.sh`, `erase_hdd.sh`, `firstboot.sh`, `moduli`, and `wifi.sh` must be
+placed in the `airootfs/root` directory prior to building.
 * Include an `.aa` template file in the `airootfs/root` directory for script
 automation.
 * Also include an wanted packages from the `pkg` directory.
-* Modify the `profiledef.sh` script to make sure `aarch`, `erase_hdd` and any
-packages you included have `0:0:755` setting, this sets user:group:permissions.
+* Modify the `profiledef.sh` script to make sure `aarch.sh`, `erase_hdd.sh`,
+`wifi.sh` and any packages you included have a `0:0:755` setting; this sets
+user:group:permissions.
 * Modify the `airootfs/root/.zlogin` script to enable the `sshd.service` on boot
 by adding `systemctl enable --now sshd.service`. Then set a root password with
 the command `chpasswd <<< "root:moo"`, with 'moo' being the password.
 
-Instructions for building your own image can be found
-[here](https://wiki.archlinux.org/index.php/Archiso).
+Instructions for building your own image can be found on the
+[ArchWiki](https://wiki.archlinux.org/index.php/Archiso).
 
 ### Existing ARCHISO
 
@@ -95,17 +93,17 @@ systemctl start sshd
 ip a
 ```
 
-Finally SCP over to the machine `aarch`, `erase_hdd`, `firstboot.txt`, `moduli`
-and an `.aa` template.
+Finally, SCP `aarch.sh`, `erase_hdd.sh`, `firstboot.sh`, `moduli`, and an `.aa`
+template to the machine.
 
 ## Usage
 
-In order to run `aarch` properly you will need all of the following files in
-the home directory of the root user in the livecd environment for the machine
+In order to run `aarch.sh` properly you will need all of the following files in
+the home directory of the root user in the live CD environment for the machine
 or virtual machine you are trying to install.
 
-```shell
-aarch erase_hdd firstboot.txt moduli
+```text
+aarch.sh erase_hdd.sh firstboot.sh moduli
 ```
 
 *In addition it also pays to have an `.aa` template.*
@@ -113,15 +111,15 @@ aarch erase_hdd firstboot.txt moduli
 To run, simply execute the script.
 
 ```shell
-./aarch
+./aarch.sh
 ```
 
 This will read the first `.aa` template found in the current directory. If no
 template is found it will prompt the user to input the configuration through
 the console.
 
-*Absolute automation can be achieved by adding `aarch` to the `.bashrc` of the
-root user on the ISO in addition to including a pre-filled in `.aa` template.*
+*Absolute automation can be achieved by adding `aarch.sh` to the `.bashrc` of
+the root user on the ISO in addition to including a pre-filled `.aa` template.*
 
 ## Attribution
 

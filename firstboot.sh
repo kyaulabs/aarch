@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# $KYAULabs: firstboot.txt,v 1.1.1 2022/08/05 16:09:51 kyau Exp $
+# $KYAULabs: firstboot.sh,v 1.1.2 2026/08/05 14:17:00 kyau Exp $
 # ▄▄▄▄ ▄▄▄▄ ▄▄▄▄▄▄▄▄▄ ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
 # █ ▄▄ ▄ ▄▄ ▄ ▄▄▄▄ ▄▄ ▄    ▄▄   ▄▄▄▄ ▄▄▄▄  ▄▄▄ ▀
 # █ ██ █ ██ █ ██ █ ██ █    ██   ██ █ ██ █ ██▀  █
@@ -10,7 +10,7 @@
 # ▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀▀▀▀▀▀▀
 #
 # Automated Arch Linux (KYAU Labs Edition)
-# Copyright (C) 2022 KYAU Labs (https://kyaulabs.com)
+# Copyright (C) 2026 KYAU Labs (https://kyaulabs.com)
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
@@ -33,12 +33,8 @@ echo "-- AARCH: FISH SHELL --"
 chsh -s /usr/bin/fish "${AA_USERNAME}"
 # fetch dotfiles from github and run script to setup symlinks
 runuser -l "${AA_USERNAME}" -c 'git clone https://github.com/kyau/dotfiles.git'
-_ADD=
-if [ "${AA_XORG}" -ne "0" ]; then
-	_ADD="x"
-fi
 # download and install dotfiles from github
-runuser -l "${AA_USERNAME}" -c "/bin/bash /home/${AA_USERNAME}/dotfiles/dotme -${_ADD}p ${AA_MACHINEROLE}"
+runuser -l "${AA_USERNAME}" -c "/bin/bash /home/${AA_USERNAME}/dotfiles/dotme -p ${AA_MACHINEROLE}"
 runuser -l "${AA_USERNAME}" -c 'rm -rf ~/dotfiles'
 # download fisher package manager for fish
 runuser -l "${AA_USERNAME}" -c 'curl -sL https://git.io/fisher | source && fisher install jorgebucaran/fisher'
@@ -62,7 +58,7 @@ else
 	for pkg in "${lines[@]}"; do
 		# if imported line is a comment or blank, skip
 		if [ "${pkg:0:1}" = "#" ] || [ -z "${pkg}" ]; then continue; fi
-		if ${AA_PKGMAN} -S "${pkg}" --noedit --nodiff --noconfirm > /dev/null 2>&1; then
+		if runuser -l "${AA_USERNAME}" -c "${AA_PKGMAN} -S ${pkg} --noconfirm" > /dev/null 2>&1; then
 			printf "%s: installed via ${AA_PKGMAN}.\\n" "${pkg}"
 		else
 			printf "! %s: failed to install.\\n" "${pkg}"
